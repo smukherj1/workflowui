@@ -175,7 +175,7 @@ In `POST /api/workflows`:
 
 1. **Size check** -- reject if body > 60 MB
 2. **JSON schema validation** -- `ajv` validates structure and types
-3. **Structural limits** -- walk tree: max 1M steps/level, max 100 deps/step, max 10 MB logs/leaf, max 50 MB total logs
+3. **Structural limits** -- walk tree: max 1M steps/level, max 100 deps/step, max 10 MB logs/leaf, max 50 MB total logs, max hierarchy depth 10.
 4. **DAG validation** -- Depth First Search (DFS) at each hierarchy level to detect cycles
 5. **DB insert** -- transaction: insert workflow, bulk-insert steps (batches of 1000), insert dependencies
 6. **Loki push** -- batch log lines into 2-4 MB chunks via `POST /loki/api/v1/push`
@@ -273,9 +273,10 @@ interface WorkflowStore {
         validation.ts                  # JSON schema + DAG validation
         types.ts                       # Shared TypeScript types
 
-  /scripts/
-    generate-mock-workflow.ts          # Generate test JSON files
-    e2e-test.ts                        # E2E test script
+  /tests/
+    /data                              # E2E test data.
+    generate-mock-workflow.ts          # Generate test JSON files in /tests/data.
+    e2e-test.ts                        # E2E test script using test JSON files from /tests/data
 
   /out/                                # gitignored, test/build outputs
 ```

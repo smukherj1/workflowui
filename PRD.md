@@ -65,5 +65,6 @@ A web-based user interface designed to visualize, inspect, and debug CI/CD workf
 - Limits on the structure of a workflow:
   - Each hierarchy level can have at most a 1 million steps.
   - Each step can depend on at most a 100 other steps.
+  - There can be at most 10 hierarchy levels.
   - The logs for a step with no sub-steps can be at most 10 MB.
   - The total amount of logs for an entire workflow can be at most 50 MB.
