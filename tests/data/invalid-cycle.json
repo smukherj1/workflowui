@@ -1,0 +1,28 @@
+{
+  "workflow": {
+    "name": "invalid-cycle-pipeline",
+    "metadata": {},
+    "steps": [
+      {
+        "id": "step-a",
+        "name": "Step A",
+        "status": "passed",
+        "dependsOn": [
+          "step-b"
+        ],
+        "logs": "Step A logs.\n",
+        "steps": []
+      },
+      {
+        "id": "step-b",
+        "name": "Step B",
+        "status": "passed",
+        "dependsOn": [
+          "step-a"
+        ],
+        "logs": "Step B logs.\n",
+        "steps": []
+      }
+    ]
+  }
+}

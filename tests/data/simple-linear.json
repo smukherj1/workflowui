@@ -1,0 +1,46 @@
+{
+  "workflow": {
+    "name": "simple-linear-pipeline",
+    "metadata": {
+      "repository": "org/repo",
+      "branch": "main",
+      "commit": "abc123"
+    },
+    "steps": [
+      {
+        "id": "checkout",
+        "name": "Checkout",
+        "status": "passed",
+        "startTime": "2026-03-08T10:00:00Z",
+        "endTime": "2026-03-08T10:00:02Z",
+        "dependsOn": [],
+        "logs": "Cloning into repo...\nChecked out abc123\n",
+        "steps": []
+      },
+      {
+        "id": "build",
+        "name": "Build",
+        "status": "passed",
+        "startTime": "2026-03-08T10:00:02Z",
+        "endTime": "2026-03-08T10:00:30Z",
+        "dependsOn": [
+          "checkout"
+        ],
+        "logs": "Installing dependencies...\nCompiling TypeScript...\nBuild succeeded.\n",
+        "steps": []
+      },
+      {
+        "id": "test",
+        "name": "Test",
+        "status": "passed",
+        "startTime": "2026-03-08T10:00:30Z",
+        "endTime": "2026-03-08T10:01:00Z",
+        "dependsOn": [
+          "build"
+        ],
+        "logs": "Running 42 tests...\nAll tests passed.\n",
+        "steps": []
+      }
+    ]
+  }
+}

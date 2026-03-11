@@ -1,0 +1,72 @@
+{
+  "workflow": {
+    "name": "parallel-diamond-pipeline",
+    "metadata": {
+      "repository": "org/repo",
+      "branch": "feature/x",
+      "commit": "def456"
+    },
+    "steps": [
+      {
+        "id": "setup",
+        "name": "Setup",
+        "status": "passed",
+        "startTime": "2026-03-08T10:00:00Z",
+        "endTime": "2026-03-08T10:00:05Z",
+        "dependsOn": [],
+        "logs": "Environment setup complete.\n",
+        "steps": []
+      },
+      {
+        "id": "unit-tests",
+        "name": "Unit Tests",
+        "status": "passed",
+        "startTime": "2026-03-08T10:00:05Z",
+        "endTime": "2026-03-08T10:00:30Z",
+        "dependsOn": [
+          "setup"
+        ],
+        "logs": "Running unit tests...\nPassed: 100, Failed: 0\n",
+        "steps": []
+      },
+      {
+        "id": "lint",
+        "name": "Lint",
+        "status": "passed",
+        "startTime": "2026-03-08T10:00:05Z",
+        "endTime": "2026-03-08T10:00:15Z",
+        "dependsOn": [
+          "setup"
+        ],
+        "logs": "Running eslint...\nNo issues found.\n",
+        "steps": []
+      },
+      {
+        "id": "type-check",
+        "name": "Type Check",
+        "status": "passed",
+        "startTime": "2026-03-08T10:00:05Z",
+        "endTime": "2026-03-08T10:00:20Z",
+        "dependsOn": [
+          "setup"
+        ],
+        "logs": "Running tsc --noEmit...\nType check passed.\n",
+        "steps": []
+      },
+      {
+        "id": "publish",
+        "name": "Publish",
+        "status": "passed",
+        "startTime": "2026-03-08T10:00:30Z",
+        "endTime": "2026-03-08T10:00:45Z",
+        "dependsOn": [
+          "unit-tests",
+          "lint",
+          "type-check"
+        ],
+        "logs": "Publishing package v1.2.3...\nPublish successful.\n",
+        "steps": []
+      }
+    ]
+  }
+}

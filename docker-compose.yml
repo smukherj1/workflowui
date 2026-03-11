@@ -24,9 +24,6 @@ services:
       - ./storage/loki-config.yaml:/etc/loki/local-config.yaml:ro
       - loki_data:/loki
     command: -config.file=/etc/loki/local-config.yaml
-    # Loki 3.x uses a distroless image (no shell), so health checks must use
-    # the binary directly. The loki binary has no built-in health sub-command,
-    # so we skip a container healthcheck and rely on restart policy instead.
     restart: unless-stopped
 
   grafana:
@@ -41,6 +38,25 @@ services:
     volumes:
       - ./storage/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
       - grafana_data:/var/lib/grafana
+    restart: unless-stopped
+
+  api:
+    build: ./ui/server
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: "3001"
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: workflowui
+      PGUSER: workflowui
+      PGPASSWORD: workflowui
+      LOKI_URL: http://loki:3100
+    depends_on:
+      postgres:
+        condition: service_healthy
+      loki:
+        condition: service_started
     restart: unless-stopped
 
 volumes:
