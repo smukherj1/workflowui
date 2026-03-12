@@ -318,5 +318,9 @@ Grafana configured with anonymous access + `allow_embedding: true` for iframe su
 - Check merged log panel shows logs scoped to the current step and its descendants
 - Click "Open in Grafana" and verify LogQL query is pre-filled for the correct step scope
 - Upload invalid JSON (cycle, oversized, malformed) and verify appropriate error messages
-- Run mock workflow generator from `/scripts/` and verify generated files upload successfully
 - Run E2E test scripts from `/scripts/`
+
+## Future Work
+
+- Logs push to Loki is currently best effort. Pushing logs should be a critical step that fails
+  the workflow JSON upload if unsuccessful.
