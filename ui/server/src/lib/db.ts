@@ -199,3 +199,113 @@ export async function insertWorkflow(input: WorkflowInput): Promise<string> {
 
   return workflowId;
 }
+
+// ── Read queries ──────────────────────────────────────────────────────────────
+
+export async function getWorkflow(id: string) {
+  const result = await pool.query(
+    `SELECT id, name, metadata, status, uploaded_at, expires_at, total_steps
+     FROM workflows WHERE id = $1`,
+    [id],
+  );
+  return result.rows[0] ?? null;
+}
+
+const MAX_STEP_PAGE = 500;
+
+export async function getStepsAtLevel(
+  workflowId: string,
+  parentId: string | null,
+  cursor: string | null,
+  limit: number,
+) {
+  const pageSize = Math.min(limit, MAX_STEP_PAGE);
+  const params: unknown[] = [workflowId];
+
+  const parentCondition = parentId
+    ? `AND s.parent_step_id = $${params.push(parentId)}`
+    : `AND s.parent_step_id IS NULL`;
+
+  let cursorCondition = '';
+  if (cursor) {
+    const decoded = parseInt(Buffer.from(cursor, 'base64url').toString('utf8'), 10);
+    if (!isNaN(decoded)) {
+      cursorCondition = `AND s.sort_order > $${params.push(decoded)}`;
+    }
+  }
+
+  params.push(pageSize + 1);
+  const limitParam = `$${params.length}`;
+
+  const stepsResult = await pool.query(
+    `SELECT s.id, s.step_id, s.name, s.status, s.start_time, s.end_time,
+            s.is_leaf, s.depth, s.sort_order, s.hierarchy_path,
+            (SELECT COUNT(*)::int FROM steps c WHERE c.parent_step_id = s.id) AS child_count
+     FROM steps s
+     WHERE s.workflow_id = $1 ${parentCondition} ${cursorCondition}
+     ORDER BY s.sort_order
+     LIMIT ${limitParam}`,
+    params,
+  );
+
+  const hasMore = stepsResult.rows.length > pageSize;
+  const steps = hasMore ? stepsResult.rows.slice(0, pageSize) : stepsResult.rows;
+
+  if (steps.length === 0) {
+    return { steps: [], dependencies: [], nextCursor: null };
+  }
+
+  const stepUuids = steps.map((s: { id: string }) => s.id);
+  const depsResult = await pool.query(
+    `SELECT step_uuid AS "from", depends_on_uuid AS "to"
+     FROM step_dependencies
+     WHERE step_uuid = ANY($1)`,
+    [stepUuids],
+  );
+
+  const nextCursor = hasMore
+    ? Buffer.from(String(steps[steps.length - 1].sort_order)).toString('base64url')
+    : null;
+
+  return { steps, dependencies: depsResult.rows, nextCursor };
+}
+
+export async function getStepDetail(workflowId: string, stepUuid: string) {
+  const stepResult = await pool.query(
+    `SELECT id, step_id, name, status, start_time, end_time, is_leaf, depth,
+            hierarchy_path,
+            (SELECT COUNT(*)::int FROM steps c WHERE c.parent_step_id = s.id) AS child_count
+     FROM steps s
+     WHERE s.id = $1 AND s.workflow_id = $2`,
+    [stepUuid, workflowId],
+  );
+
+  if (stepResult.rows.length === 0) return null;
+  const step = stepResult.rows[0];
+
+  const pathParts = (step.hierarchy_path as string).split('/').filter(Boolean);
+  if (pathParts.length <= 1) {
+    return { step, breadcrumbs: [] };
+  }
+
+  // Build ancestor paths: /a, /a/b, /a/b/c, … excluding the current step's own path
+  const ancestorPaths = pathParts
+    .slice(0, -1)
+    .map((_, i) => '/' + pathParts.slice(0, i + 1).join('/'));
+
+  const ancestorsResult = await pool.query(
+    `SELECT id, step_id, name, depth
+     FROM steps
+     WHERE workflow_id = $1 AND hierarchy_path = ANY($2)
+     ORDER BY depth`,
+    [workflowId, ancestorPaths],
+  );
+
+  const breadcrumbs = ancestorsResult.rows.map((r) => ({
+    uuid: r.id,
+    stepId: r.step_id,
+    name: r.name,
+  }));
+
+  return { step, breadcrumbs };
+}

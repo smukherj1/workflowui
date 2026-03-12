@@ -59,6 +59,94 @@ async function pushBatch(workflowId: string, entries: LogEntry[]): Promise<void>
   }
 }
 
+// ── Query ─────────────────────────────────────────────────────────────────────
+
+export interface LogLine {
+  timestampNs: string;
+  line: string;
+  stepPath: string;
+  stepId: string;
+  depth: string;
+}
+
+interface LokiQueryResponse {
+  data: {
+    result: Array<{
+      stream: Record<string, string>;
+      values: Array<[string, string, Record<string, string>?]>;
+    }>;
+  };
+}
+
+export async function queryLogs(
+  workflowId: string,
+  stepPath: string,
+  limit: number,
+  cursor: string | null,
+): Promise<{ lines: LogLine[]; nextCursor: string | null }> {
+  // Loki 3.0 promotes per-entry structured metadata to stream labels, so
+  // step_path ends up as a stream label — use it in the stream selector with
+  // a regex that matches the path itself and any descendant paths.
+  const escapedPath = stepPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const logql = `{workflow_id="${workflowId}",step_path=~"${escapedPath}(/.*)?"}`;
+
+  // Default start: 7 days ago (matches workflow retention period)
+  const sevenDaysNs = BigInt(7 * 24 * 60 * 60 * 1000) * 1_000_000n;
+  let startNs = String(BigInt(Date.now()) * 1_000_000n - sevenDaysNs);
+  if (cursor) {
+    const decoded = Buffer.from(cursor, 'base64url').toString('utf8');
+    startNs = String(BigInt(decoded) + 1n);
+  }
+  // end = now + 1 minute to account for clock skew
+  const endNs = String(BigInt(Date.now()) * 1_000_000n + 60_000_000_000n);
+
+  const params = new URLSearchParams({
+    query: logql,
+    limit: String(Math.min(limit, 1000)),
+    direction: 'forward',
+    start: startNs,
+    end: endNs,
+  });
+
+  const res = await fetch(`${LOKI_URL}/loki/api/v1/query_range?${params}`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Loki query failed (${res.status}): ${text}`);
+  }
+
+  const data = (await res.json()) as LokiQueryResponse;
+  const lines: LogLine[] = [];
+
+  for (const stream of data.data.result) {
+    // Metadata lives in stream labels (Loki promoted per-entry metadata to stream labels)
+    const stepPathLabel = stream.stream.step_path ?? '';
+    const stepIdLabel = stream.stream.step_id ?? '';
+    const depthLabel = stream.stream.depth ?? '0';
+
+    for (const value of stream.values) {
+      const [tsNs, line] = value;
+      lines.push({
+        timestampNs: tsNs,
+        line,
+        stepPath: stepPathLabel,
+        stepId: stepIdLabel,
+        depth: depthLabel,
+      });
+    }
+  }
+
+  lines.sort((a, b) => (BigInt(a.timestampNs) < BigInt(b.timestampNs) ? -1 : 1));
+
+  const nextCursor =
+    lines.length > 0
+      ? Buffer.from(lines[lines.length - 1].timestampNs).toString('base64url')
+      : null;
+
+  return { lines, nextCursor };
+}
+
+// ── Push ──────────────────────────────────────────────────────────────────────
+
 export async function pushLogsToLoki(
   workflowId: string,
   input: WorkflowInput

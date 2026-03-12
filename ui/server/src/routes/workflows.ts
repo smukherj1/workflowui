@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from 'express';
 import { validateWorkflow } from '../lib/validation';
-import { insertWorkflow } from '../lib/db';
+import { insertWorkflow, getWorkflow } from '../lib/db';
 import { pushLogsToLoki } from '../lib/loki';
 
 const router = Router();
@@ -40,6 +40,32 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
 
   const viewUrl = `/workflows/${workflowId}`;
   res.status(201).json({ workflowId, viewUrl });
+});
+
+router.get('/:id', async (req: Request, res: Response): Promise<void> => {
+  const workflow = await getWorkflow(req.params.id).catch((err) => {
+    console.error('DB error fetching workflow:', err);
+    return undefined;
+  });
+
+  if (workflow === undefined) {
+    res.status(500).json({ error: 'DB_ERROR', message: 'Failed to fetch workflow' });
+    return;
+  }
+  if (workflow === null) {
+    res.status(404).json({ error: 'NOT_FOUND', message: 'Workflow not found' });
+    return;
+  }
+
+  res.json({
+    id: workflow.id,
+    name: workflow.name,
+    metadata: workflow.metadata,
+    status: workflow.status,
+    uploadedAt: workflow.uploaded_at,
+    expiresAt: workflow.expires_at,
+    totalSteps: workflow.total_steps,
+  });
 });
 
 export default router;

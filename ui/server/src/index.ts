@@ -1,6 +1,8 @@
 import express, { type Request, type Response, type NextFunction } from 'express';
 import cors from 'cors';
 import workflowsRouter from './routes/workflows';
+import stepsRouter from './routes/steps';
+import logsRouter from './routes/logs';
 
 const app = express();
 const PORT = parseInt(process.env.PORT ?? '3001', 10);
@@ -13,6 +15,8 @@ app.use(
 );
 
 app.use('/api/workflows', workflowsRouter);
+app.use('/api/workflows', stepsRouter);
+app.use('/api/workflows', logsRouter);
 
 app.get('/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok', ts: new Date().toISOString() });
