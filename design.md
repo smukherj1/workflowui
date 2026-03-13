@@ -6,16 +6,19 @@ The workflowui project needs a technical design to implement the PRD at `/PRD.md
 
 ---
 
-## Log Storage: Grafana Loki + Grafana
+## Log Storage: PostgreSQL
 
-| Criteria              | ELK                        | Loki + Grafana                    |
-| --------------------- | -------------------------- | --------------------------------- |
-| RAM baseline          | 8-16 GB                    | 2-4 GB                            |
-| Deployment complexity | High (3 services)          | Low (simple config)               |
-| Query model           | Full-text index (overkill) | Label-based (perfect fit)         |
-| Retention config      | Index lifecycle mgmt       | Single `retention_period` setting |
+Logs are stored directly in PostgreSQL alongside workflow metadata. This simplifies the architecture (no additional services) and avoids issues with dedicated log systems like Loki that reject logs with old timestamps — a problem for this product since users upload historical workflow traces that may have executed hours or days ago.
 
-Access patterns are simple label-based lookups (logs for workflow X, step Y). Loki's label model maps directly to workflow/step hierarchy. Grafana provides log viewing with filtering/aggregation and can be embedded via iframe or linked with pre-filled LogQL queries.
+| Criteria              | ELK                        | Loki + Grafana                              | PostgreSQL                          |
+| --------------------- | -------------------------- | ------------------------------------------- | ----------------------------------- |
+| RAM baseline          | 8-16 GB                    | 2-4 GB                                      | Shared with metadata DB             |
+| Deployment complexity | High (3 services)          | Low (simple config)                         | None (already deployed)             |
+| Query model           | Full-text index (overkill) | Label-based (rejects old timestamps)        | SQL (simple, flexible)              |
+| Retention config      | Index lifecycle mgmt       | `retention_period` setting                  | CASCADE delete with workflow expiry |
+| Historical uploads    | Supported                  | **Not supported** (discards old timestamps) | Fully supported                     |
+
+Access patterns are simple key-based lookups (logs for workflow X, step Y). Logs are bounded at 50MB per workflow and 10MB per leaf step, well within PostgreSQL's capacity. Retention is handled automatically via CASCADE deletes when expired workflows are cleaned up.
 
 ---
 
@@ -25,17 +28,12 @@ Access patterns are simple label-based lookups (logs for workflow X, step Y). Lo
 [Browser] --> [Vite React SPA :5173]
                   |
                   v
-              [Express API :3001] --> [PostgreSQL :5432]  (workflow metadata, DAG)
-                  |                --> [Loki :3100]        (log storage)
-                  |
-[Browser] --> [Grafana :3000]                             (log viewing UI)
+              [Express API :3001] --> [PostgreSQL :5432]  (workflow metadata, DAG, logs)
 ```
 
 - **Vite + React**: SPA frontend for workflow visualization
 - **Express (TypeScript)**: REST API server handling uploads, validation, queries
-- **PostgreSQL**: Stores workflow metadata, step hierarchy, DAG relationships
-- **Grafana Loki**: Stores step logs with label-based indexing
-- **Grafana**: Log exploration UI (linked or embedded via iframe)
+- **PostgreSQL**: Stores workflow metadata, step hierarchy, DAG relationships, and logs
 
 ---
 
@@ -107,28 +105,30 @@ CREATE TABLE step_dependencies (
     PRIMARY KEY (step_uuid, depends_on_uuid)
 );
 
+CREATE TABLE step_logs (
+    step_uuid   UUID PRIMARY KEY REFERENCES steps(id) ON DELETE CASCADE,
+    log_text    TEXT NOT NULL
+);
+
 CREATE INDEX idx_steps_workflow_parent ON steps(workflow_id, parent_step_id);
 CREATE INDEX idx_steps_hierarchy_path ON steps(workflow_id, hierarchy_path);
 ```
 
 `hierarchy_path` enables prefix queries for merged log views: `WHERE hierarchy_path LIKE '/step-3/%'`.
 
-Workflow expiry: daily cron or pg_cron runs `DELETE FROM workflows WHERE expires_at < now()`. Cascade deletes remove all steps. Loki handles its own 7-day retention via `retention_period: 168h`.
+`step_logs` stores logs for leaf steps only (steps with `is_leaf = true`). Logs are stored as plain text. The table uses `step_uuid` as its primary key since each leaf step has exactly one log entry. CASCADE delete ensures logs are cleaned up when steps or workflows are removed.
+
+Workflow expiry: daily cron or pg_cron runs `DELETE FROM workflows WHERE expires_at < now()`. Cascade deletes remove all steps and their logs.
 
 ---
 
-## Loki Label Strategy
+## Log Query Strategy
 
-To avoid high cardinality (1M steps = 1M streams), use one stream per workflow with structured metadata (Loki 3.0+):
+Logs are queried via SQL joins on the `steps` and `step_logs` tables, using `hierarchy_path` for scoping:
 
-- **Indexed label**: `{workflow_id="<uuid>"}`
-- **Structured metadata**: `step_path`, `step_id`, `depth`
-
-Query examples:
-
-- All logs: `{workflow_id="abc"}`
-- Specific step: `{workflow_id="abc"} | step_path="/step-3/step-3-1"`
-- Merged sub-steps: `{workflow_id="abc"} | step_path=~"/step-3/.*"`
+- **All logs for a workflow**: Join `step_logs` with `steps` where `workflow_id = ?` and `is_leaf = true`, ordered by `sort_order`/`hierarchy_path`.
+- **Logs for a specific leaf step**: Direct lookup by `step_uuid`.
+- **Merged logs for a parent step and its descendants**: Join `step_logs` with `steps` where `hierarchy_path LIKE '/step-3/%'`, ordered by `sort_order`/`hierarchy_path`.
 
 ---
 
@@ -142,8 +142,7 @@ All routes served from the Express server at `:3001`.
 | GET    | `/api/workflows/:id`                               | Workflow detail (name, metadata, status, timestamps)          |
 | GET    | `/api/workflows/:id/steps?parentId=`               | Steps at hierarchy level with dependencies (cursor-paginated) |
 | GET    | `/api/workflows/:id/steps/:uuid`                   | Step detail with breadcrumbs                                  |
-| GET    | `/api/workflows/:id/logs?stepPath=&limit=&cursor=` | Proxied Loki log query for inline log panel                   |
-| GET    | `/api/workflows/:id/steps/:uuid/logs/explore`      | 302 redirect to Grafana with pre-filled LogQL                 |
+| GET    | `/api/workflows/:id/logs?stepPath=&limit=&cursor=` | Merged logs for a step scope (cursor-paginated)               |
 
 **Steps response shape:**
 
@@ -177,9 +176,8 @@ In `POST /api/workflows`:
 2. **JSON schema validation** -- `ajv` validates structure and types
 3. **Structural limits** -- walk tree: max 1M steps/level, max 100 deps/step, max 10 MB logs/leaf, max 50 MB total logs, max hierarchy depth 10.
 4. **DAG validation** -- Depth First Search (DFS) at each hierarchy level to detect cycles
-5. **DB insert** -- transaction: insert workflow, bulk-insert steps (batches of 1000), insert dependencies
-6. **Loki push** -- batch log lines into 2-4 MB chunks via `POST /loki/api/v1/push`
-7. **Return** -- `201 { workflowId, viewUrl }` or `400 { error, message, details }`
+5. **DB insert** -- transaction: insert workflow, bulk-insert steps (batches of 1000), insert dependencies, bulk-insert logs for leaf steps
+6. **Return** -- `201 { workflowId, viewUrl }` or `400 { error, message, details }`
 
 ---
 
@@ -207,7 +205,7 @@ In `POST /api/workflows`:
 
 - `GraphView` -- React Flow canvas with dagre layout, StepNode custom nodes
 - `StepNode` -- Status badge (color-coded), name, elapsed time; click navigates to sub-steps
-- `LogPanel` -- Inline merged log view (virtual-scrolled) + "Open in Grafana" button
+- `LogPanel` -- Inline merged log view (virtual-scrolled)
 - `Breadcrumbs` -- Hierarchy navigation from step detail API
 - `UploadForm` -- File upload with drag-and-drop, validation error display
 - `StatusBadge` -- Color-coded step status indicator
@@ -238,8 +236,6 @@ interface WorkflowStore {
   design.md
 
   /storage/                            # Infrastructure configs
-    loki-config.yaml
-    grafana-datasources.yaml
     init.sql                           # PostgreSQL schema
 
   /ui/                                 # Vite + React SPA
@@ -268,8 +264,6 @@ interface WorkflowStore {
         logs.ts                        # Log proxy + Grafana redirect
       /lib/
         db.ts                          # PostgreSQL client (pg or Drizzle)
-        loki.ts                        # Loki push/query client
-        grafana.ts                     # Grafana URL builder
         validation.ts                  # JSON schema + DAG validation
         types.ts                       # Shared TypeScript types
 
@@ -284,26 +278,24 @@ interface WorkflowStore {
 
 ## Docker Compose Services
 
-| Service  | Image                       | Port | Purpose           |
-| -------- | --------------------------- | ---- | ----------------- |
-| ui       | Custom (Vite build + nginx) | 8080 | Serves React SPA  |
-| api      | Custom (Express)            | 3001 | REST API server   |
-| postgres | postgres:17-alpine          | 5432 | Workflow metadata |
-| loki     | grafana/loki:3.0.0          | 3100 | Log storage       |
-| grafana  | grafana/grafana:11.0.0      | 3000 | Log viewer        |
+| Service  | Image                       | Port | Purpose                    |
+| -------- | --------------------------- | ---- | -------------------------- |
+| ui       | Custom (Vite build + nginx) | 8080 | Serves React SPA           |
+| api      | Custom (Express)            | 3001 | REST API server            |
+| postgres | postgres:17-alpine          | 5432 | Workflow metadata and logs |
 
-Grafana configured with anonymous access + `allow_embedding: true` for iframe support. For dev, the Vite dev server proxies `/api` requests to the Express server.
+For dev, the Vite dev server proxies `/api` requests to the Express server.
 
 ---
 
 ## Implementation Phases
 
-1. **Infrastructure** -- Docker Compose with PostgreSQL, Loki, Grafana. Schema init script. Verify Loki push/query works.
-2. **Express API + Upload pipeline** -- Express scaffold, POST endpoint, JSON validation, DAG check, DB insert, Loki push.
+1. **Infrastructure** -- Docker Compose with PostgreSQL. Schema init script.
+2. **Express API + Upload pipeline** -- Express scaffold, POST endpoint, JSON validation, DAG check, DB insert (metadata + logs).
 3. **API endpoints** -- Workflow detail, steps-at-level with pagination, step detail with breadcrumbs, log proxy.
 4. **Frontend shell** -- Vite + React scaffold, React Router, upload page, Zustand store.
 5. **Graph view** -- React Flow + dagre, StepNode component, click-to-navigate.
-6. **Log panel** -- Inline merged logs with virtual scroll, Grafana redirect links.
+6. **Log panel** -- Inline merged logs with virtual scroll.
 7. **Polish** -- Breadcrumbs, error states, loading states, large-graph fallback view.
 8. **Scripts & testing** -- Mock workflow generator, E2E tests.
 
@@ -315,11 +307,5 @@ Grafana configured with anonymous access + `allow_embedding: true` for iframe su
 - Upload a mock workflow JSON via `POST /api/workflows` and verify the returned URL works
 - Navigate the DAG: click steps, verify sub-step graphs render with correct dependencies
 - Check merged log panel shows logs scoped to the current step and its descendants
-- Click "Open in Grafana" and verify LogQL query is pre-filled for the correct step scope
 - Upload invalid JSON (cycle, oversized, malformed) and verify appropriate error messages
 - Run E2E test scripts using `bun run tests:e2e`
-
-## Future Work
-
-- Logs push to Loki is currently best effort. Pushing logs should be a critical step that fails
-  the workflow JSON upload if unsuccessful.
