@@ -2,7 +2,7 @@
   "name": "workflowui-root",
   "private": true,
   "scripts": {
-    "test:e2e": "ts-node tests/e2e-test.ts"
+    "test:e2e": "bun tests/e2e-test.ts"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

@@ -1,6 +1,6 @@
-import type { WorkflowInput, WorkflowStep } from './types';
+import type { WorkflowInput, WorkflowStep } from "./types";
 
-const LOKI_URL = process.env.LOKI_URL ?? 'http://localhost:3100';
+const LOKI_URL = process.env.LOKI_URL ?? "http://localhost:3100";
 const MAX_BATCH_BYTES = 2 * 1024 * 1024; // 2 MB
 
 interface LogEntry {
@@ -13,31 +13,41 @@ function collectLogs(
   steps: WorkflowStep[],
   parentPath: string,
   depth: number,
-  entries: LogEntry[]
+  entries: LogEntry[],
+  nowNs: bigint,
+  counter: { value: bigint },
 ): void {
   for (const step of steps) {
     const stepPath = `${parentPath}/${step.id}`;
     if (step.steps.length === 0 && step.logs) {
-      const lines = step.logs.split('\n');
-      const baseMs = step.startTime ? new Date(step.startTime).getTime() : Date.now();
-      const baseNs = BigInt(baseMs) * 1_000_000n;
+      const lines = step.logs.split("\n");
       lines.forEach((line, idx) => {
         // Skip trailing empty line from a log ending in \n
-        if (line === '' && idx === lines.length - 1) return;
+        if (line === "" && idx === lines.length - 1) return;
+        // Use current time + monotonic counter so Loki doesn't reject old timestamps.
+        // Original execution timestamps are stored in the database.
         entries.push({
-          timestampNs: (baseNs + BigInt(idx)).toString(),
-          line: line || ' ',
-          metadata: { step_path: stepPath, step_id: step.id, depth: String(depth) },
+          timestampNs: (nowNs + counter.value).toString(),
+          line: line || " ",
+          metadata: {
+            step_path: stepPath,
+            step_id: step.id,
+            depth: String(depth),
+          },
         });
+        counter.value += 1n;
       });
     }
     if (step.steps.length > 0) {
-      collectLogs(step.steps, stepPath, depth + 1, entries);
+      collectLogs(step.steps, stepPath, depth + 1, entries, nowNs, counter);
     }
   }
 }
 
-async function pushBatch(workflowId: string, entries: LogEntry[]): Promise<void> {
+async function pushBatch(
+  workflowId: string,
+  entries: LogEntry[],
+): Promise<void> {
   const payload = {
     streams: [
       {
@@ -47,9 +57,13 @@ async function pushBatch(workflowId: string, entries: LogEntry[]): Promise<void>
     ],
   };
 
+  console.log(
+    `Loki logs push: workflow_id=${workflowId} payload=${JSON.stringify(payload)}`,
+  );
+
   const res = await fetch(`${LOKI_URL}/loki/api/v1/push`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
 
@@ -84,17 +98,16 @@ export async function queryLogs(
   limit: number,
   cursor: string | null,
 ): Promise<{ lines: LogLine[]; nextCursor: string | null }> {
-  // Loki 3.0 promotes per-entry structured metadata to stream labels, so
-  // step_path ends up as a stream label — use it in the stream selector with
-  // a regex that matches the path itself and any descendant paths.
-  const escapedPath = stepPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const logql = `{workflow_id="${workflowId}",step_path=~"${escapedPath}(/.*)?"}`;
+  // step_path is structured metadata (not a stream label), so it must be
+  // filtered using a label filter after the stream selector, not inside {}.
+  const escapedPath = stepPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const logql = `{workflow_id="${workflowId}"} | step_path=~"${escapedPath}(/.*)?$"`;
 
   // Default start: 7 days ago (matches workflow retention period)
   const sevenDaysNs = BigInt(7 * 24 * 60 * 60 * 1000) * 1_000_000n;
   let startNs = String(BigInt(Date.now()) * 1_000_000n - sevenDaysNs);
   if (cursor) {
-    const decoded = Buffer.from(cursor, 'base64url').toString('utf8');
+    const decoded = Buffer.from(cursor, "base64url").toString("utf8");
     startNs = String(BigInt(decoded) + 1n);
   }
   // end = now + 1 minute to account for clock skew
@@ -103,11 +116,14 @@ export async function queryLogs(
   const params = new URLSearchParams({
     query: logql,
     limit: String(Math.min(limit, 1000)),
-    direction: 'forward',
+    direction: "forward",
     start: startNs,
     end: endNs,
   });
 
+  console.log(
+    `Loki logs query: GET ${LOKI_URL}/loki/api/v1/query_range?${params}`,
+  );
   const res = await fetch(`${LOKI_URL}/loki/api/v1/query_range?${params}`);
   if (!res.ok) {
     const text = await res.text();
@@ -118,10 +134,10 @@ export async function queryLogs(
   const lines: LogLine[] = [];
 
   for (const stream of data.data.result) {
-    // Metadata lives in stream labels (Loki promoted per-entry metadata to stream labels)
-    const stepPathLabel = stream.stream.step_path ?? '';
-    const stepIdLabel = stream.stream.step_id ?? '';
-    const depthLabel = stream.stream.depth ?? '0';
+    // Loki promotes structured metadata into stream labels in query results
+    const stepPathLabel = stream.stream.step_path ?? "";
+    const stepIdLabel = stream.stream.step_id ?? "";
+    const depthLabel = stream.stream.depth ?? "0";
 
     for (const value of stream.values) {
       const [tsNs, line] = value;
@@ -135,11 +151,13 @@ export async function queryLogs(
     }
   }
 
-  lines.sort((a, b) => (BigInt(a.timestampNs) < BigInt(b.timestampNs) ? -1 : 1));
+  lines.sort((a, b) =>
+    BigInt(a.timestampNs) < BigInt(b.timestampNs) ? -1 : 1,
+  );
 
   const nextCursor =
     lines.length > 0
-      ? Buffer.from(lines[lines.length - 1].timestampNs).toString('base64url')
+      ? Buffer.from(lines[lines.length - 1].timestampNs).toString("base64url")
       : null;
 
   return { lines, nextCursor };
@@ -149,15 +167,12 @@ export async function queryLogs(
 
 export async function pushLogsToLoki(
   workflowId: string,
-  input: WorkflowInput
+  input: WorkflowInput,
 ): Promise<void> {
   const entries: LogEntry[] = [];
-  collectLogs(input.workflow.steps, '', 1, entries);
+  const nowNs = BigInt(Date.now()) * 1_000_000n;
+  collectLogs(input.workflow.steps, "", 1, entries, nowNs, { value: 0n });
   if (entries.length === 0) return;
-
-  entries.sort((a, b) =>
-    BigInt(a.timestampNs) < BigInt(b.timestampNs) ? -1 : 1
-  );
 
   let batch: LogEntry[] = [];
   let batchBytes = 0;
