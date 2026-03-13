@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS step_dependencies (
     PRIMARY KEY (step_uuid, depends_on_uuid)
 );
 
-CREATE TABLE step_logs (
+CREATE TABLE IF NOT EXISTS step_logs (
     step_uuid   UUID PRIMARY KEY REFERENCES steps(id) ON DELETE CASCADE,
     log_text    TEXT NOT NULL
 );

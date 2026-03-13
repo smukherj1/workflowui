@@ -7,6 +7,19 @@ import type {
   PendingDep,
 } from "./types";
 
+export interface LogLine {
+  timestampNs: string;
+  line: string;
+  stepPath: string;
+  stepId: string;
+  depth: string;
+}
+
+interface PendingLog {
+  stepUUID: string;
+  logText: string;
+}
+
 export const pool = new Pool({
   host: process.env.PGHOST ?? "localhost",
   port: parseInt(process.env.PGPORT ?? "5432"),
@@ -37,6 +50,7 @@ function flattenSteps(
   depth: number,
   flatSteps: FlatStep[],
   pendingDeps: PendingDep[],
+  pendingLogs: PendingLog[],
 ): void {
   for (let i = 0; i < steps.length; i++) {
     const step = steps[i];
@@ -63,7 +77,11 @@ function flattenSteps(
       pendingDeps.push({ stepUUID: uuid, parentKey, dependsOnStepId: depId });
     }
 
-    if (!isLeaf) {
+    if (isLeaf) {
+      if (step.logs) {
+        pendingLogs.push({ stepUUID: uuid, logText: step.logs });
+      }
+    } else {
       flattenSteps(
         step.steps,
         uuid,
@@ -71,8 +89,28 @@ function flattenSteps(
         depth + 1,
         flatSteps,
         pendingDeps,
+        pendingLogs,
       );
     }
+  }
+}
+
+async function bulkInsertLogs(
+  client: PoolClient,
+  logs: PendingLog[],
+): Promise<void> {
+  if (logs.length === 0) return;
+  const BATCH = 1000;
+  for (let i = 0; i < logs.length; i += BATCH) {
+    const slice = logs.slice(i, i + BATCH);
+    const placeholders = slice.map(
+      (_, idx) => `($${idx * 2 + 1},$${idx * 2 + 2})`,
+    );
+    const values = slice.flatMap((l) => [l.stepUUID, l.logText]);
+    await client.query(
+      `INSERT INTO step_logs (step_uuid, log_text) VALUES ${placeholders.join(",")}`,
+      values,
+    );
   }
 }
 
@@ -140,7 +178,8 @@ export async function insertWorkflow(input: WorkflowInput): Promise<string> {
 
   const flatSteps: FlatStep[] = [];
   const pendingDeps: PendingDep[] = [];
-  flattenSteps(input.workflow.steps, null, "", 1, flatSteps, pendingDeps);
+  const pendingLogs: PendingLog[] = [];
+  flattenSteps(input.workflow.steps, null, "", 1, flatSteps, pendingDeps, pendingLogs);
 
   // Build parent -> stepId -> uuid map for dependency resolution
   const depMap = new Map<string, Map<string, string>>();
@@ -188,6 +227,7 @@ export async function insertWorkflow(input: WorkflowInput): Promise<string> {
     }
 
     await bulkInsertDeps(client, resolvedDeps);
+    await bulkInsertLogs(client, pendingLogs);
 
     await client.query("COMMIT");
   } catch (err) {
@@ -308,4 +348,53 @@ export async function getStepDetail(workflowId: string, stepUuid: string) {
   }));
 
   return { step, breadcrumbs };
+}
+
+export async function queryLogs(
+  workflowId: string,
+  stepPath: string,
+  limit: number,
+  cursor: string | null,
+): Promise<{ lines: LogLine[]; nextCursor: string | null }> {
+  let offset = 0;
+  if (cursor) {
+    const decoded = parseInt(Buffer.from(cursor, "base64url").toString("utf8"), 10);
+    if (!isNaN(decoded)) offset = decoded;
+  }
+
+  const result = await pool.query(
+    `SELECT s.step_id, s.hierarchy_path, s.depth, sl.log_text
+     FROM steps s
+     JOIN step_logs sl ON sl.step_uuid = s.id
+     WHERE s.workflow_id = $1
+       AND s.is_leaf = true
+       AND (s.hierarchy_path = $2 OR s.hierarchy_path LIKE $3)
+     ORDER BY s.sort_order`,
+    [workflowId, stepPath, stepPath + "/%"],
+  );
+
+  const allLines: LogLine[] = [];
+  for (const row of result.rows) {
+    const logLines = (row.log_text as string).split("\n");
+    for (let i = 0; i < logLines.length; i++) {
+      const line = logLines[i];
+      if (line === "" && i === logLines.length - 1) continue;
+      allLines.push({
+        timestampNs: String(allLines.length),
+        line: line || " ",
+        stepPath: row.hierarchy_path as string,
+        stepId: row.step_id as string,
+        depth: String(row.depth),
+      });
+    }
+  }
+
+  const page = allLines.slice(offset, offset + limit);
+  const nextOffset = offset + limit;
+  const nextCursor =
+    nextOffset < allLines.length
+      ? Buffer.from(String(nextOffset)).toString("base64url")
+      : null;
+
+  return { lines: page, nextCursor };
 }

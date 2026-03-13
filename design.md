@@ -71,113 +71,14 @@ Access patterns are simple key-based lookups (logs for workflow X, step Y). Logs
 
 ---
 
-## Database Schema (PostgreSQL)
+## Database Schema, API Design & Upload Pipeline
 
-```sql
-CREATE TABLE workflows (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name        TEXT NOT NULL,
-    metadata    JSONB,
-    uploaded_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    expires_at  TIMESTAMPTZ NOT NULL DEFAULT now() + INTERVAL '7 days',
-    total_steps INTEGER NOT NULL,
-    status      TEXT NOT NULL
-);
+See [`ui/server/design.md`](ui/server/design.md) for the full details on:
 
-CREATE TABLE steps (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    workflow_id     UUID NOT NULL REFERENCES workflows(id) ON DELETE CASCADE,
-    step_id         TEXT NOT NULL,
-    parent_step_id  UUID REFERENCES steps(id) ON DELETE CASCADE,
-    hierarchy_path  TEXT NOT NULL,        -- e.g. "/step-3/step-3-1"
-    name            TEXT NOT NULL,
-    status          TEXT NOT NULL,
-    start_time      TIMESTAMPTZ,
-    end_time        TIMESTAMPTZ,
-    is_leaf         BOOLEAN NOT NULL,
-    depth           INTEGER NOT NULL,
-    sort_order      INTEGER NOT NULL DEFAULT 0
-);
-
-CREATE TABLE step_dependencies (
-    step_uuid       UUID NOT NULL REFERENCES steps(id) ON DELETE CASCADE,
-    depends_on_uuid UUID NOT NULL REFERENCES steps(id) ON DELETE CASCADE,
-    PRIMARY KEY (step_uuid, depends_on_uuid)
-);
-
-CREATE TABLE step_logs (
-    step_uuid   UUID PRIMARY KEY REFERENCES steps(id) ON DELETE CASCADE,
-    log_text    TEXT NOT NULL
-);
-
-CREATE INDEX idx_steps_workflow_parent ON steps(workflow_id, parent_step_id);
-CREATE INDEX idx_steps_hierarchy_path ON steps(workflow_id, hierarchy_path);
-```
-
-`hierarchy_path` enables prefix queries for merged log views: `WHERE hierarchy_path LIKE '/step-3/%'`.
-
-`step_logs` stores logs for leaf steps only (steps with `is_leaf = true`). Logs are stored as plain text. The table uses `step_uuid` as its primary key since each leaf step has exactly one log entry. CASCADE delete ensures logs are cleaned up when steps or workflows are removed.
-
-Workflow expiry: daily cron or pg_cron runs `DELETE FROM workflows WHERE expires_at < now()`. Cascade deletes remove all steps and their logs.
-
----
-
-## Log Query Strategy
-
-Logs are queried via SQL joins on the `steps` and `step_logs` tables, using `hierarchy_path` for scoping:
-
-- **All logs for a workflow**: Join `step_logs` with `steps` where `workflow_id = ?` and `is_leaf = true`, ordered by `sort_order`/`hierarchy_path`.
-- **Logs for a specific leaf step**: Direct lookup by `step_uuid`.
-- **Merged logs for a parent step and its descendants**: Join `step_logs` with `steps` where `hierarchy_path LIKE '/step-3/%'`, ordered by `sort_order`/`hierarchy_path`.
-
----
-
-## API Design (Express Routes)
-
-All routes served from the Express server at `:3001`.
-
-| Method | Endpoint                                           | Purpose                                                       |
-| ------ | -------------------------------------------------- | ------------------------------------------------------------- |
-| POST   | `/api/workflows`                                   | Upload workflow JSON, returns `{ workflowId, viewUrl }`       |
-| GET    | `/api/workflows/:id`                               | Workflow detail (name, metadata, status, timestamps)          |
-| GET    | `/api/workflows/:id/steps?parentId=`               | Steps at hierarchy level with dependencies (cursor-paginated) |
-| GET    | `/api/workflows/:id/steps/:uuid`                   | Step detail with breadcrumbs                                  |
-| GET    | `/api/workflows/:id/logs?stepPath=&limit=&cursor=` | Merged logs for a step scope (cursor-paginated)               |
-
-**Steps response shape:**
-
-```json
-{
-  "steps": [
-    {
-      "uuid": "...",
-      "stepId": "step-1",
-      "name": "...",
-      "status": "passed",
-      "startTime": "...",
-      "endTime": "...",
-      "elapsedMs": 5000,
-      "isLeaf": true,
-      "childCount": 0
-    }
-  ],
-  "dependencies": [{ "from": "step-1-uuid", "to": "step-2-uuid" }],
-  "nextCursor": "..."
-}
-```
-
----
-
-## Upload & Validation Pipeline
-
-In `POST /api/workflows`:
-
-1. **Size check** -- reject if body > 60 MB
-2. **JSON schema validation** -- `ajv` validates structure and types
-3. **Structural limits** -- walk tree: max 1M steps/level, max 100 deps/step, max 10 MB logs/leaf, max 50 MB total logs, max hierarchy depth 10.
-4. **DAG validation** -- Depth First Search (DFS) at each hierarchy level to detect cycles
-5. **DB insert** -- transaction: insert workflow, bulk-insert steps (batches of 1000), insert dependencies, bulk-insert logs for leaf steps
-6. **Return** -- `201 { workflowId, viewUrl }` or `400 { error, message, details }`
+- PostgreSQL schema (tables, indexes, retention strategy)
+- Log storage and query strategy
+- API routes, request/response shapes
+- Upload and validation pipeline
 
 ---
 
@@ -252,7 +153,8 @@ interface WorkflowStore {
       /lib/                            # api.ts (fetch helpers), types.ts
       /store/                          # workflowStore.ts (Zustand)
 
-  /ui/server/                          # Express API server
+  /ui/server/                          # Express API server (see ui/server/design.md)
+    design.md                          # API server technical design
     package.json
     tsconfig.json
     Dockerfile
@@ -261,10 +163,11 @@ interface WorkflowStore {
       /routes/
         workflows.ts                   # Upload + workflow detail routes
         steps.ts                       # Step listing + detail routes
-        logs.ts                        # Log proxy + Grafana redirect
+        logs.ts                        # Log query + Grafana redirect
       /lib/
-        db.ts                          # PostgreSQL client (pg or Drizzle)
+        db.ts                          # PostgreSQL client, all queries
         validation.ts                  # JSON schema + DAG validation
+        grafana.ts                     # Grafana Explore URL builder
         types.ts                       # Shared TypeScript types
 
   /tests/

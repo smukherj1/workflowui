@@ -1,7 +1,6 @@
 import { Router, type Request, type Response } from 'express';
 import { validateWorkflow } from '../lib/validation';
 import { insertWorkflow, getWorkflow } from '../lib/db';
-import { pushLogsToLoki } from '../lib/loki';
 
 const router = Router();
 
@@ -32,11 +31,6 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({ error: 'DB_ERROR', message: 'Failed to store workflow' });
     return;
   }
-
-  // Loki push is best-effort; failure doesn't block response
-  pushLogsToLoki(workflowId, result.input).catch((err) => {
-    console.error(`Loki push failed for workflow ${workflowId}:`, err);
-  });
 
   const viewUrl = `/workflows/${workflowId}`;
   res.status(201).json({ workflowId, viewUrl });

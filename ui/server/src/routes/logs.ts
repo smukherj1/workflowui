@@ -1,7 +1,6 @@
 import { Router, type Request, type Response } from 'express';
-import { queryLogs } from '../lib/loki';
+import { queryLogs, getStepDetail } from '../lib/db';
 import { buildGrafanaExploreUrl } from '../lib/grafana';
-import { getStepDetail } from '../lib/db';
 
 const router = Router();
 
@@ -21,8 +20,8 @@ router.get('/:id/logs', async (req: Request, res: Response): Promise<void> => {
     const result = await queryLogs(id, stepPath, limit, cursor);
     res.json(result);
   } catch (err) {
-    console.error('Loki query error:', err);
-    res.status(502).json({ error: 'LOKI_ERROR', message: 'Failed to query logs' });
+    console.error('DB log query error:', err);
+    res.status(500).json({ error: 'DB_ERROR', message: 'Failed to query logs' });
   }
 });
 

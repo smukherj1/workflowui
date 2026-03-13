@@ -1,0 +1,184 @@
+# Technical Design: Express API Server (`ui/server`)
+
+## Overview
+
+The Express API server handles workflow uploads, validation, and all read queries. It is the sole writer to PostgreSQL and the sole source of truth for workflow data. See the top-level `design.md` for system context, architecture decisions, and the upload JSON schema.
+
+---
+
+## Database Schema (PostgreSQL)
+
+The schema lives in `/storage/init.sql` and is applied automatically on first container start.
+
+```sql
+CREATE TABLE workflows (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name        TEXT NOT NULL,
+    metadata    JSONB,
+    uploaded_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at  TIMESTAMPTZ NOT NULL DEFAULT now() + INTERVAL '7 days',
+    total_steps INTEGER NOT NULL,
+    status      TEXT NOT NULL
+);
+
+CREATE TABLE steps (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    workflow_id     UUID NOT NULL REFERENCES workflows(id) ON DELETE CASCADE,
+    step_id         TEXT NOT NULL,
+    parent_step_id  UUID REFERENCES steps(id) ON DELETE CASCADE,
+    hierarchy_path  TEXT NOT NULL,        -- e.g. "/step-3/step-3-1"
+    name            TEXT NOT NULL,
+    status          TEXT NOT NULL,
+    start_time      TIMESTAMPTZ,
+    end_time        TIMESTAMPTZ,
+    is_leaf         BOOLEAN NOT NULL,
+    depth           INTEGER NOT NULL,
+    sort_order      INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE step_dependencies (
+    step_uuid       UUID NOT NULL REFERENCES steps(id) ON DELETE CASCADE,
+    depends_on_uuid UUID NOT NULL REFERENCES steps(id) ON DELETE CASCADE,
+    PRIMARY KEY (step_uuid, depends_on_uuid)
+);
+
+CREATE TABLE step_logs (
+    step_uuid   UUID PRIMARY KEY REFERENCES steps(id) ON DELETE CASCADE,
+    log_text    TEXT NOT NULL
+);
+
+CREATE INDEX idx_steps_workflow_parent ON steps(workflow_id, parent_step_id);
+CREATE INDEX idx_steps_hierarchy_path ON steps(workflow_id, hierarchy_path);
+```
+
+`hierarchy_path` enables prefix queries for merged log views: `WHERE hierarchy_path LIKE '/step-3/%'`.
+
+`step_logs` stores one row per leaf step. `log_text` is the full log string for that step. CASCADE delete cleans up logs automatically when steps or workflows are removed.
+
+Workflow expiry: a daily cron or pg_cron runs `DELETE FROM workflows WHERE expires_at < now()`. Cascade deletes remove all steps and logs.
+
+---
+
+## Log Storage & Query Strategy
+
+Logs are inserted into `step_logs` within the same transaction as the workflow upload — no separate push step. Each leaf step's full log string is stored as a single `log_text` row.
+
+**Query pattern** (`GET /api/workflows/:id/logs?stepPath=`):
+
+```sql
+SELECT s.step_id, s.hierarchy_path, s.depth, sl.log_text
+FROM steps s
+JOIN step_logs sl ON sl.step_uuid = s.id
+WHERE s.workflow_id = $1
+  AND s.is_leaf = true
+  AND (s.hierarchy_path = $2 OR s.hierarchy_path LIKE $3)
+ORDER BY s.sort_order
+```
+
+Where `$2` is the exact `stepPath` and `$3` is `stepPath + '/%'`. This covers both leaf lookup (exact match) and merged parent view (prefix match).
+
+Results are split into individual lines in the application layer and returned with cursor-based pagination (line offset encoded as base64url).
+
+---
+
+## API Routes
+
+All routes are prefixed `/api/workflows` and served on `:3001`.
+
+| Method | Endpoint                                           | Handler file              | Purpose                                                       |
+| ------ | -------------------------------------------------- | ------------------------- | ------------------------------------------------------------- |
+| POST   | `/api/workflows`                                   | `routes/workflows.ts`     | Upload workflow JSON, returns `{ workflowId, viewUrl }`       |
+| GET    | `/api/workflows/:id`                               | `routes/workflows.ts`     | Workflow detail (name, metadata, status, timestamps)          |
+| GET    | `/api/workflows/:id/steps?parentId=`               | `routes/steps.ts`         | Steps at hierarchy level with dependencies (cursor-paginated) |
+| GET    | `/api/workflows/:id/steps/:uuid`                   | `routes/steps.ts`         | Step detail with breadcrumbs                                  |
+| GET    | `/api/workflows/:id/logs?stepPath=&limit=&cursor=` | `routes/logs.ts`          | Merged logs for a step scope (cursor-paginated)               |
+| GET    | `/api/workflows/:id/steps/:uuid/logs/explore`      | `routes/logs.ts`          | 302 redirect to Grafana Explore for the step                  |
+
+**Steps response shape:**
+
+```json
+{
+  "steps": [
+    {
+      "uuid": "...",
+      "stepId": "step-1",
+      "name": "...",
+      "status": "passed",
+      "startTime": "...",
+      "endTime": "...",
+      "isLeaf": true,
+      "childCount": 0
+    }
+  ],
+  "dependencies": [{ "from": "step-1-uuid", "to": "step-2-uuid" }],
+  "nextCursor": "..."
+}
+```
+
+**Logs response shape:**
+
+```json
+{
+  "lines": [
+    {
+      "timestampNs": "0",
+      "line": "Building React app...",
+      "stepPath": "/ci/build-frontend",
+      "stepId": "build-frontend",
+      "depth": "2"
+    }
+  ],
+  "nextCursor": "..."
+}
+```
+
+Cursor for steps is `base64url(sort_order)`. Cursor for logs is `base64url(line_offset)`.
+
+---
+
+## Upload & Validation Pipeline
+
+`POST /api/workflows` processes uploads in this order:
+
+1. **Size check** — reject if `Content-Length` > 60 MB
+2. **JSON schema validation** — `ajv` validates structure and field types
+3. **Structural limits** — walk tree: max 1M steps/level, max 100 deps/step, max 10 MB logs/leaf, max 50 MB total logs, max hierarchy depth 10
+4. **DAG validation** — DFS at each hierarchy level to detect cycles in `dependsOn` references
+5. **DB insert** — single transaction: insert workflow row, bulk-insert steps (batches of 1000), bulk-insert dependencies, bulk-insert leaf logs
+6. **Return** — `201 { workflowId, viewUrl }` or `400 { error, details }`
+
+---
+
+## Source Layout
+
+```
+ui/server/
+  src/
+    index.ts              # Express app entry, port config, route mounting
+    routes/
+      workflows.ts        # POST /api/workflows, GET /api/workflows/:id
+      steps.ts            # GET steps at level, GET step detail + breadcrumbs
+      logs.ts             # GET logs (DB query), GET logs/explore (Grafana redirect)
+    lib/
+      db.ts               # pg Pool, insertWorkflow, queryLogs, getStepsAtLevel, getStepDetail
+      validation.ts       # AJV schema + structural + DAG validation
+      grafana.ts          # Grafana Explore URL builder
+      types.ts            # Shared TypeScript types (WorkflowInput, FlatStep, etc.)
+  package.json
+  tsconfig.json
+  Dockerfile
+```
+
+---
+
+## Environment Variables
+
+| Variable     | Default      | Description             |
+| ------------ | ------------ | ----------------------- |
+| `PORT`       | `3001`       | HTTP listen port        |
+| `PGHOST`     | `localhost`  | PostgreSQL host         |
+| `PGPORT`     | `5432`       | PostgreSQL port         |
+| `PGDATABASE` | `workflowui` | Database name           |
+| `PGUSER`     | `workflowui` | Database user           |
+| `PGPASSWORD` | `workflowui` | Database password       |
+| `GRAFANA_URL`| `http://localhost:3000` | Grafana base URL for explore redirects |
