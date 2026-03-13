@@ -32,6 +32,11 @@ CREATE TABLE IF NOT EXISTS step_dependencies (
     PRIMARY KEY (step_uuid, depends_on_uuid)
 );
 
+CREATE TABLE step_logs (
+    step_uuid   UUID PRIMARY KEY REFERENCES steps(id) ON DELETE CASCADE,
+    log_text    TEXT NOT NULL
+);
+
 -- Indexes for common query patterns
 CREATE INDEX IF NOT EXISTS idx_steps_workflow_parent   ON steps(workflow_id, parent_step_id);
 CREATE INDEX IF NOT EXISTS idx_steps_hierarchy_path    ON steps(workflow_id, hierarchy_path);

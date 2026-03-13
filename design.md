@@ -309,3 +309,7 @@ For dev, the Vite dev server proxies `/api` requests to the Express server.
 - Check merged log panel shows logs scoped to the current step and its descendants
 - Upload invalid JSON (cycle, oversized, malformed) and verify appropriate error messages
 - Run E2E test scripts using `bun run tests:e2e`
+
+## Future Work
+
+- Use drizzle in ui/server for postgres queries.

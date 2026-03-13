@@ -15,31 +15,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-
-  loki:
-    image: grafana/loki:3.6.7
-    ports:
-      - "3100:3100"
-    volumes:
-      - ./storage/loki-config.yaml:/etc/loki/local-config.yaml:ro
-      - loki_data:/loki
-    command: -config.file=/etc/loki/local-config.yaml
-    restart: unless-stopped
-
-  grafana:
-    image: grafana/grafana:12.3
-    ports:
-      - "3000:3000"
-    environment:
-      GF_AUTH_ANONYMOUS_ENABLED: "true"
-      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
-      GF_SECURITY_ALLOW_EMBEDDING: "true"
-      GF_AUTH_DISABLE_LOGIN_FORM: "true"
-    volumes:
-      - ./storage/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
-      - grafana_data:/var/lib/grafana
-    restart: unless-stopped
-
   api:
     build: ./ui/server
     ports:
@@ -55,11 +30,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      loki:
-        condition: service_started
     restart: unless-stopped
 
 volumes:
   postgres_data:
-  loki_data:
-  grafana_data:
