@@ -1,15 +1,34 @@
-FROM node:20-alpine AS builder
+# Use the official Bun image
+FROM oven/bun:1-alpine AS builder
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci
+
+# Copy dependency files
+COPY package.json bun.lockb ./
+
+# Install all dependencies (including devDeps for the build)
+RUN bun install --frozen-lockfile
+
+# Copy source and config
 COPY tsconfig.json ./
 COPY src/ ./src/
-RUN npm run build
 
-FROM node:20-alpine
+# Run the build script
+RUN bun run build
+
+# Final runner stage
+FROM oven/bun:1-alpine
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci --omit=dev
+
+# Copy dependency files
+COPY package.json bun.lockb ./
+
+# Install only production dependencies
+RUN bun install --frozen-lockfile --production
+
+# Copy built assets from builder
 COPY --from=builder /app/dist ./dist
+
 EXPOSE 3001
-CMD ["node", "dist/index.js"]
+
+# Run the app using Bun's runtime
+CMD ["bun", "dist/index.js"]

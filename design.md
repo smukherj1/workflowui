@@ -275,7 +275,6 @@ interface WorkflowStore {
 
   /tests/
     /data                              # E2E test data.
-    generate-mock-workflow.ts          # Generate test JSON files in /tests/data.
     e2e-test.ts                        # E2E test script using test JSON files from /tests/data
 
   /out/                                # gitignored, test/build outputs
@@ -318,7 +317,7 @@ Grafana configured with anonymous access + `allow_embedding: true` for iframe su
 - Check merged log panel shows logs scoped to the current step and its descendants
 - Click "Open in Grafana" and verify LogQL query is pre-filled for the correct step scope
 - Upload invalid JSON (cycle, oversized, malformed) and verify appropriate error messages
-- Run E2E test scripts from `/scripts/`
+- Run E2E test scripts using `bun run tests:e2e`
 
 ## Future Work
 
