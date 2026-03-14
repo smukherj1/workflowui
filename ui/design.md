@@ -10,16 +10,16 @@ This document covers implementation phases 4–7: frontend shell, graph view, lo
 
 ## Tech Stack
 
-| Library | Purpose |
-| --- | --- |
-| Vite + React 18 (TypeScript) | SPA build & runtime |
-| React Router v6 | Client-side routing |
-| React Flow | DAG canvas with pan/zoom and virtualized rendering |
-| @dagrejs/dagre | Automatic DAG layout (topological left-to-right) |
-| Zustand | Lightweight global state |
-| TanStack Query (React Query) | Data fetching, caching, background refetching |
-| @tanstack/react-virtual | Virtualized log line rendering |
-| Tailwind CSS | Utility-first styling |
+| Library                      | Purpose                                            |
+| ---------------------------- | -------------------------------------------------- |
+| Vite + React 18 (TypeScript) | SPA build & runtime                                |
+| React Router v7              | Client-side routing                                |
+| React Flow                   | DAG canvas with pan/zoom and virtualized rendering |
+| @dagrejs/dagre               | Automatic DAG layout (topological left-to-right)   |
+| Zustand                      | Lightweight global state                           |
+| TanStack Query (React Query) | Data fetching, caching, background refetching      |
+| @tanstack/react-virtual      | Virtualized log line rendering                     |
+| Tailwind CSS                 | Utility-first styling                              |
 
 ---
 
@@ -121,6 +121,7 @@ Custom React Flow node rendered for each step. Displays:
 - `childCount` badge if > 0 (indicating drillable).
 
 **Click behavior:**
+
 - If `isLeaf === false`: navigate to `/workflows/:workflowId/steps/:uuid`.
 - If `isLeaf === true`: open `LogPanel` scoped to this step's logs.
 
@@ -171,13 +172,13 @@ A slide-up drawer anchored to the bottom of the viewport. Available on all workf
 
 Pure presentational component. Maps status string to color:
 
-| Status | Color | Tailwind class |
-| --- | --- | --- |
-| passed | Green | `bg-green-500` |
-| failed | Red | `bg-red-500` |
-| running | Blue (pulse) | `bg-blue-500 animate-pulse` |
-| skipped | Gray | `bg-gray-400` |
-| cancelled | Yellow | `bg-yellow-500` |
+| Status    | Color        | Tailwind class              |
+| --------- | ------------ | --------------------------- |
+| passed    | Green        | `bg-green-500`              |
+| failed    | Red          | `bg-red-500`                |
+| running   | Blue (pulse) | `bg-blue-500 animate-pulse` |
+| skipped   | Gray         | `bg-gray-400`               |
+| cancelled | Yellow       | `bg-yellow-500`             |
 
 ### `WorkflowHeader`
 
@@ -197,18 +198,18 @@ interface WorkflowStore {
   // Log panel
   logPanelOpen: boolean;
   toggleLogPanel: () => void;
-  logStepPath: string | null;      // stepPath for current log scope
+  logStepPath: string | null; // stepPath for current log scope
   setLogStepPath: (path: string | null) => void;
-  logFilter: string;               // text filter for log lines
+  logFilter: string; // text filter for log lines
   setLogFilter: (filter: string) => void;
 
   // Status filter
-  statusFilter: StepStatus[];      // empty = show all
+  statusFilter: StepStatus[]; // empty = show all
   setStatusFilter: (statuses: StepStatus[]) => void;
 
   // Graph/grid mode (auto-determined but can be manually overridden)
-  viewMode: 'dagre' | 'grid';
-  setViewMode: (mode: 'dagre' | 'grid') => void;
+  viewMode: "dagre" | "grid";
+  setViewMode: (mode: "dagre" | "grid") => void;
 }
 ```
 
@@ -218,12 +219,12 @@ TanStack Query handles all server state (workflow detail, steps, logs). Zustand 
 
 ## Data Fetching (TanStack Query)
 
-| Query key | Endpoint | Options |
-| --- | --- | --- |
-| `['workflow', workflowId]` | `GET /api/workflows/:id` | `staleTime: Infinity` |
-| `['steps', workflowId, parentId]` | `GET /api/workflows/:id/steps?parentId=` | `useInfiniteQuery`, paginate via `nextCursor` |
-| `['stepDetail', workflowId, uuid]` | `GET /api/workflows/:id/steps/:uuid` | `staleTime: Infinity` |
-| `['logs', workflowId, stepPath]` | `GET /api/workflows/:id/logs?stepPath=` | `useInfiniteQuery`, paginate via `nextCursor` |
+| Query key                          | Endpoint                                 | Options                                       |
+| ---------------------------------- | ---------------------------------------- | --------------------------------------------- |
+| `['workflow', workflowId]`         | `GET /api/workflows/:id`                 | `staleTime: Infinity`                         |
+| `['steps', workflowId, parentId]`  | `GET /api/workflows/:id/steps?parentId=` | `useInfiniteQuery`, paginate via `nextCursor` |
+| `['stepDetail', workflowId, uuid]` | `GET /api/workflows/:id/steps/:uuid`     | `staleTime: Infinity`                         |
+| `['logs', workflowId, stepPath]`   | `GET /api/workflows/:id/logs?stepPath=`  | `useInfiniteQuery`, paginate via `nextCursor` |
 
 All fetch functions live in `src/lib/api.ts` and return typed responses.
 
@@ -232,13 +233,27 @@ All fetch functions live in `src/lib/api.ts` and return typed responses.
 ## API Client (`src/lib/api.ts`)
 
 ```typescript
-const API_BASE = '/api';
+const API_BASE = "/api";
 
-export async function uploadWorkflow(file: File): Promise<{ workflowId: string; viewUrl: string }>;
+export async function uploadWorkflow(
+  file: File,
+): Promise<{ workflowId: string; viewUrl: string }>;
 export async function getWorkflow(id: string): Promise<WorkflowDetail>;
-export async function getSteps(workflowId: string, parentId?: string, cursor?: string): Promise<StepsResponse>;
-export async function getStepDetail(workflowId: string, uuid: string): Promise<StepDetailResponse>;
-export async function getLogs(workflowId: string, stepPath: string, cursor?: string, limit?: number): Promise<LogsResponse>;
+export async function getSteps(
+  workflowId: string,
+  parentId?: string,
+  cursor?: string,
+): Promise<StepsResponse>;
+export async function getStepDetail(
+  workflowId: string,
+  uuid: string,
+): Promise<StepDetailResponse>;
+export async function getLogs(
+  workflowId: string,
+  stepPath: string,
+  cursor?: string,
+  limit?: number,
+): Promise<LogsResponse>;
 ```
 
 In dev, Vite proxies `/api` to `http://localhost:3001`.
@@ -248,7 +263,7 @@ In dev, Vite proxies `/api` to `http://localhost:3001`.
 ## Types (`src/lib/types.ts`)
 
 ```typescript
-type StepStatus = 'passed' | 'failed' | 'running' | 'skipped' | 'cancelled';
+type StepStatus = "passed" | "failed" | "running" | "skipped" | "cancelled";
 
 interface WorkflowDetail {
   id: string;
@@ -272,8 +287,8 @@ interface Step {
 }
 
 interface Dependency {
-  from: string;  // step UUID
-  to: string;    // step UUID
+  from: string; // step UUID
+  to: string; // step UUID
 }
 
 interface StepsResponse {
@@ -417,16 +432,16 @@ When a hierarchy level has > 10K steps, dagre layout becomes too expensive and R
 
 ## Error & Loading States
 
-| State | Component | Behavior |
-| --- | --- | --- |
-| Workflow fetch loading | `WorkflowLayout` | Skeleton header + spinner |
-| Workflow not found (404) | `WorkflowLayout` | "Workflow not found" message with link to upload page |
-| Steps fetch loading | `GraphContainer` | Centered spinner |
-| Steps fetch error | `GraphContainer` | Error message with retry button |
-| Log fetch loading | `LogPanel` | Skeleton lines |
-| Log fetch error | `LogPanel` | Error message with retry button |
-| Empty steps (0 steps at level) | `GraphContainer` | "No steps at this level" message |
-| Upload in progress | `UploadForm` | Button disabled, spinner, "Uploading..." text |
+| State                          | Component        | Behavior                                              |
+| ------------------------------ | ---------------- | ----------------------------------------------------- |
+| Workflow fetch loading         | `WorkflowLayout` | Skeleton header + spinner                             |
+| Workflow not found (404)       | `WorkflowLayout` | "Workflow not found" message with link to upload page |
+| Steps fetch loading            | `GraphContainer` | Centered spinner                                      |
+| Steps fetch error              | `GraphContainer` | Error message with retry button                       |
+| Log fetch loading              | `LogPanel`       | Skeleton lines                                        |
+| Log fetch error                | `LogPanel`       | Error message with retry button                       |
+| Empty steps (0 steps at level) | `GraphContainer` | "No steps at this level" message                      |
+| Upload in progress             | `UploadForm`     | Button disabled, spinner, "Uploading..." text         |
 
 ---
 
@@ -437,7 +452,7 @@ When a hierarchy level has > 10K steps, dagre layout becomes too expensive and R
 export default defineConfig({
   server: {
     proxy: {
-      '/api': 'http://localhost:3001',
+      "/api": "http://localhost:3001",
     },
   },
 });
@@ -454,45 +469,59 @@ Backend API endpoint behavior is covered by `/tests/e2e-tests-backend.ts`. The f
 ### Test Cases
 
 **1. SPA Serving & Hydration**
+
 - Navigate to `/`. Verify `#root` element exists and React has hydrated (content rendered inside `#root`).
 
 **2. Upload Page Renders**
+
 - Navigate to `/`. Verify the page shows a file input, drop zone, or upload prompt.
 
 **3. File Upload → Workflow View Navigation**
+
 - On the upload page, set a `.json` fixture on the file input. Verify the browser navigates to a `/workflows/:id` URL after upload completes.
 
 **4. Workflow View Renders DAG Nodes**
+
 - Upload `simple-linear.json` via API, navigate to its view URL. Verify step names ("Checkout", "Build", "Test") are visible in the page.
 
 **5. Workflow Header Shows Metadata**
+
 - Upload `parallel-diamond.json`, navigate to view. Verify the workflow name and metadata (repository or branch) are displayed.
 
 **6. Status Badges Render with Distinct Styles**
+
 - Upload `mixed-status.json` (passed, failed, skipped steps), navigate to view. Verify all three step names are rendered (visual badge styling verified by presence).
 
 **7. Click Non-Leaf Step → Navigates to Sub-Step View**
+
 - Upload `nested-hierarchy.json`, navigate to view. Click "CI" step node. Verify URL changes to `/steps/:uuid` and child steps ("Build Frontend", "Build Backend", "Integration Tests") are rendered.
 
 **8. Breadcrumb Navigation**
+
 - After navigating into CI sub-steps, verify breadcrumbs show hierarchy context. Click workflow name breadcrumb to navigate back to top-level view.
 
 **9. Log Panel Opens**
+
 - Upload `simple-linear.json`, navigate to view. Click a log toggle or a leaf step. Verify log panel or log content becomes visible.
 
 **10. Log Panel Shows Step Logs**
+
 - Upload `simple-linear.json`, navigate to view, click "Checkout" step. Verify the log line "Cloning into repo..." appears in the page.
 
 **11. Client-Side Routing Fallback (Deep Link)**
+
 - Navigate directly to a valid workflow view URL (uploaded via API). Verify the SPA loads and renders content. Also navigate to a nonexistent workflow path and verify a 200 response (SPA shell served, not a server 404).
 
 **12. Browser Back/Forward Navigation**
+
 - Upload `nested-hierarchy.json`, navigate to view, click into CI sub-steps. Press browser back — verify return to workflow view. Press forward — verify return to sub-step view.
 
 **13. Upload Invalid File Shows Error**
+
 - On the upload page, set `invalid-cycle.json` on the file input. Verify the browser does NOT navigate to a workflow view and an error message is displayed.
 
 **14. Step Nodes Show Elapsed Time**
+
 - Upload `simple-linear.json`, navigate to view. Verify time-like patterns (e.g., "2s", "28s") appear in the page.
 
 ---
@@ -515,5 +544,6 @@ EXPOSE 8080
 ```
 
 Nginx config serves the SPA with:
+
 - `try_files $uri $uri/ /index.html` for client-side routing fallback.
 - Proxy pass `/api` to the API service.
