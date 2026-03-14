@@ -179,7 +179,15 @@ export async function insertWorkflow(input: WorkflowInput): Promise<string> {
   const flatSteps: FlatStep[] = [];
   const pendingDeps: PendingDep[] = [];
   const pendingLogs: PendingLog[] = [];
-  flattenSteps(input.workflow.steps, null, "", 1, flatSteps, pendingDeps, pendingLogs);
+  flattenSteps(
+    input.workflow.steps,
+    null,
+    "",
+    1,
+    flatSteps,
+    pendingDeps,
+    pendingLogs,
+  );
 
   // Build parent -> stepId -> uuid map for dependency resolution
   const depMap = new Map<string, Map<string, string>>();
@@ -266,9 +274,12 @@ export async function getStepsAtLevel(
     ? `AND s.parent_step_id = $${params.push(parentId)}`
     : `AND s.parent_step_id IS NULL`;
 
-  let cursorCondition = '';
+  let cursorCondition = "";
   if (cursor) {
-    const decoded = parseInt(Buffer.from(cursor, 'base64url').toString('utf8'), 10);
+    const decoded = parseInt(
+      Buffer.from(cursor, "base64url").toString("utf8"),
+      10,
+    );
     if (!isNaN(decoded)) {
       cursorCondition = `AND s.sort_order > $${params.push(decoded)}`;
     }
@@ -289,7 +300,9 @@ export async function getStepsAtLevel(
   );
 
   const hasMore = stepsResult.rows.length > pageSize;
-  const steps = hasMore ? stepsResult.rows.slice(0, pageSize) : stepsResult.rows;
+  const steps = hasMore
+    ? stepsResult.rows.slice(0, pageSize)
+    : stepsResult.rows;
 
   if (steps.length === 0) {
     return { steps: [], dependencies: [], nextCursor: null };
@@ -304,7 +317,9 @@ export async function getStepsAtLevel(
   );
 
   const nextCursor = hasMore
-    ? Buffer.from(String(steps[steps.length - 1].sort_order)).toString('base64url')
+    ? Buffer.from(String(steps[steps.length - 1].sort_order)).toString(
+        "base64url",
+      )
     : null;
 
   return { steps, dependencies: depsResult.rows, nextCursor };
@@ -323,15 +338,12 @@ export async function getStepDetail(workflowId: string, stepUuid: string) {
   if (stepResult.rows.length === 0) return null;
   const step = stepResult.rows[0];
 
-  const pathParts = (step.hierarchy_path as string).split('/').filter(Boolean);
-  if (pathParts.length <= 1) {
-    return { step, breadcrumbs: [] };
-  }
+  const pathParts = (step.hierarchy_path as string).split("/").filter(Boolean);
 
-  // Build ancestor paths: /a, /a/b, /a/b/c, … excluding the current step's own path
-  const ancestorPaths = pathParts
-    .slice(0, -1)
-    .map((_, i) => '/' + pathParts.slice(0, i + 1).join('/'));
+  // Build ancestor paths: /a, /a/b, /a/b/c, … including the current step's own path
+  const ancestorPaths = pathParts.map(
+    (_, i) => "/" + pathParts.slice(0, i + 1).join("/"),
+  );
 
   const ancestorsResult = await pool.query(
     `SELECT id, step_id, name, depth
@@ -358,7 +370,10 @@ export async function queryLogs(
 ): Promise<{ lines: LogLine[]; nextCursor: string | null }> {
   let offset = 0;
   if (cursor) {
-    const decoded = parseInt(Buffer.from(cursor, "base64url").toString("utf8"), 10);
+    const decoded = parseInt(
+      Buffer.from(cursor, "base64url").toString("utf8"),
+      10,
+    );
     if (!isNaN(decoded)) offset = decoded;
   }
 

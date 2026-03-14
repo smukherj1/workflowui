@@ -15,6 +15,18 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  pgadmin:
+    image: dpage/pgadmin4:9.13
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
   api:
     build: ./ui/server
     ports:
