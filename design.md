@@ -200,7 +200,7 @@ For dev, the Vite dev server proxies `/api` requests to the Express server.
 5. **Graph view** -- React Flow + dagre, StepNode component, click-to-navigate.
 6. **Log panel** -- Inline merged logs with virtual scroll.
 7. **Polish** -- Breadcrumbs, error states, loading states, large-graph fallback view.
-8. **Scripts & testing** -- Mock workflow generator, E2E tests.
+8. **Scripts & testing** -- E2E tests.
 
 ---
 
@@ -211,7 +211,7 @@ For dev, the Vite dev server proxies `/api` requests to the Express server.
 - Navigate the DAG: click steps, verify sub-step graphs render with correct dependencies
 - Check merged log panel shows logs scoped to the current step and its descendants
 - Upload invalid JSON (cycle, oversized, malformed) and verify appropriate error messages
-- Run E2E test scripts using `bun run tests:e2e`
+- Run backend E2E test scripts using `bun run tests:e2e-backend`
 
 ## Future Work
 
