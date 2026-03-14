@@ -171,5 +171,4 @@ For dev, the Vite dev server proxies `/api` requests to the Express server.
 
 ## Future Work
 
-- Upgrade vite from v6 to v8 in the ui server.
 - Use drizzle in ui/server for postgres queries.
