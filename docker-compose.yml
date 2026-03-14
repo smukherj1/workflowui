@@ -30,6 +30,13 @@ services:
       postgres:
         condition: service_healthy
     restart: unless-stopped
+  ui:
+    build: ./ui
+    ports:
+      - "8080:8080"
+    depends_on:
+      - api
+    restart: unless-stopped
 
 volumes:
   postgres_data:

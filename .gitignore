@@ -1,4 +1,5 @@
 out
 node_modules
+ui/node_modules
 ui/server/node_modules
 ui/server/dist
