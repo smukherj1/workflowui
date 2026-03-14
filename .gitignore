@@ -1,5 +1,9 @@
 out
 node_modules
+
+ui/dist
 ui/node_modules
+ui/tsconfig.tsbuildinfo
+
 ui/server/node_modules
 ui/server/dist

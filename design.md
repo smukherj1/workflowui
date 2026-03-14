@@ -155,29 +155,12 @@ For dev, the Vite dev server proxies `/api` requests to the Express server.
 
 ---
 
-## Implementation Phases
-
-1. **Infrastructure** -- Docker Compose with PostgreSQL. Schema init script.
-2. **Express API + Upload pipeline** -- Express scaffold, POST endpoint, JSON validation, DAG check, DB insert (metadata + logs).
-3. **API endpoints** -- Workflow detail, steps-at-level with pagination, step detail with breadcrumbs, log proxy.
-4. **Frontend shell** -- Vite + React scaffold, React Router, upload page, Zustand store.
-5. **Graph view** -- React Flow + dagre, StepNode component, click-to-navigate.
-6. **Log panel** -- Inline merged logs with virtual scroll.
-7. **Polish** -- Breadcrumbs, error states, loading states, large-graph fallback view.
-8. **Scripts & testing** -- E2E tests.
-
----
-
 ## Verification
 
-- `docker compose up` starts all services and they connect successfully
-- Upload a mock workflow JSON via `POST /api/workflows` and verify the returned URL works
-- Navigate the DAG: click steps, verify sub-step graphs render with correct dependencies
-- Check merged log panel shows logs scoped to the current step and its descendants
-- Upload invalid JSON (cycle, oversized, malformed) and verify appropriate error messages
 - Run backend E2E test scripts using `bun run test:e2e-backend`
 - Run frontend E2E test scripts using `bun run test:e2e-frontend`
 
 ## Future Work
 
+- Upgrade vite from v6 to v8 in the ui server.
 - Use drizzle in ui/server for postgres queries.
