@@ -84,47 +84,16 @@ See [`ui/server/design.md`](ui/server/design.md) for the full details on:
 
 ## Frontend Architecture
 
-**Tech stack:**
+See [`ui/design.md`](ui/design.md) for the full details on:
 
-- Vite + React (TypeScript) -- SPA
-- React Flow -- DAG visualization with virtualization
-- dagre (@dagrejs/dagre) -- DAG layout algorithm
-- Zustand -- lightweight state management
-- @tanstack/react-virtual -- virtualized log rendering
-- Tailwind CSS -- styling
-- SWR or TanStack Query -- data fetching with caching
-
-**Route structure (React Router):**
-
-```
-/                                      -- Upload landing page
-/workflows/:workflowId                -- Top-level DAG view
-/workflows/:workflowId/steps/:uuid    -- Sub-step DAG or leaf detail
-```
-
-**Key components:**
-
-- `GraphView` -- React Flow canvas with dagre layout, StepNode custom nodes
-- `StepNode` -- Status badge (color-coded), name, elapsed time; click navigates to sub-steps
-- `LogPanel` -- Inline merged log view (virtual-scrolled)
-- `Breadcrumbs` -- Hierarchy navigation from step detail API
-- `UploadForm` -- File upload with drag-and-drop, validation error display
-- `StatusBadge` -- Color-coded step status indicator
-- `WorkflowHeader` -- Workflow name, metadata, overall status
-
-**1M steps handling:** For levels > 10K steps, fall back to a filterable list/grid view grouped by status instead of dagre layout.
-
-**State (Zustand):**
-
-```typescript
-interface WorkflowStore {
-  currentWorkflow: Workflow | null;
-  logPanelOpen: boolean;
-  logFilter: string;
-  graphLayout: "dagre" | "grid";
-  statusFilter: StepStatus[];
-}
-```
+- Component tree and specifications (GraphView, StepNode, LogPanel, Breadcrumbs, etc.)
+- State management (Zustand store shape)
+- Data fetching strategy (TanStack Query keys, caching)
+- API client contract and TypeScript types
+- Interaction flows (upload, DAG navigation, log panel, breadcrumbs)
+- Large step count strategy (> 10K steps grid fallback)
+- Error and loading states
+- Frontend E2E test plan
 
 ---
 
@@ -139,19 +108,14 @@ interface WorkflowStore {
   /storage/                            # Infrastructure configs
     init.sql                           # PostgreSQL schema
 
-  /ui/                                 # Vite + React SPA
+  /ui/                                 # Vite + React SPA (see ui/design.md)
+    design.md                          # Frontend technical design
     package.json
     vite.config.ts
     tsconfig.json
     index.html
     Dockerfile
-    /src/
-      main.tsx
-      App.tsx
-      /pages/                          # Upload, WorkflowView, StepView
-      /components/                     # GraphView, StepNode, LogPanel, etc.
-      /lib/                            # api.ts (fetch helpers), types.ts
-      /store/                          # workflowStore.ts (Zustand)
+    /src/                              # See ui/design.md for full source layout
 
   /ui/server/                          # Express API server (see ui/server/design.md)
     design.md                          # API server technical design
@@ -163,16 +127,16 @@ interface WorkflowStore {
       /routes/
         workflows.ts                   # Upload + workflow detail routes
         steps.ts                       # Step listing + detail routes
-        logs.ts                        # Log query + Grafana redirect
+        logs.ts                        # Log query routes
       /lib/
         db.ts                          # PostgreSQL client, all queries
         validation.ts                  # JSON schema + DAG validation
-        grafana.ts                     # Grafana Explore URL builder
         types.ts                       # Shared TypeScript types
 
   /tests/
     /data                              # E2E test data.
-    e2e-test.ts                        # E2E test script using test JSON files from /tests/data
+    e2e-tests-backend.ts               # Backend API E2E tests
+    e2e-tests-frontend.ts              # Frontend E2E tests (SPA serving, data contracts)
 
   /out/                                # gitignored, test/build outputs
 ```
@@ -211,7 +175,8 @@ For dev, the Vite dev server proxies `/api` requests to the Express server.
 - Navigate the DAG: click steps, verify sub-step graphs render with correct dependencies
 - Check merged log panel shows logs scoped to the current step and its descendants
 - Upload invalid JSON (cycle, oversized, malformed) and verify appropriate error messages
-- Run backend E2E test scripts using `bun run tests:e2e-backend`
+- Run backend E2E test scripts using `bun run test:e2e-backend`
+- Run frontend E2E test scripts using `bun run test:e2e-frontend`
 
 ## Future Work
 
