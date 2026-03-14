@@ -92,7 +92,6 @@ All routes are prefixed `/api/workflows` and served on `:3001`.
 | GET    | `/api/workflows/:id/steps?parentId=`               | `routes/steps.ts`         | Steps at hierarchy level with dependencies (cursor-paginated) |
 | GET    | `/api/workflows/:id/steps/:uuid`                   | `routes/steps.ts`         | Step detail with breadcrumbs                                  |
 | GET    | `/api/workflows/:id/logs?stepPath=&limit=&cursor=` | `routes/logs.ts`          | Merged logs for a step scope (cursor-paginated)               |
-| GET    | `/api/workflows/:id/steps/:uuid/logs/explore`      | `routes/logs.ts`          | 302 redirect to Grafana Explore for the step                  |
 
 **Steps response shape:**
 
@@ -158,11 +157,10 @@ ui/server/
     routes/
       workflows.ts        # POST /api/workflows, GET /api/workflows/:id
       steps.ts            # GET steps at level, GET step detail + breadcrumbs
-      logs.ts             # GET logs (DB query), GET logs/explore (Grafana redirect)
+      logs.ts             # GET logs (DB query, cursor-paginated)
     lib/
       db.ts               # pg Pool, insertWorkflow, queryLogs, getStepsAtLevel, getStepDetail
       validation.ts       # AJV schema + structural + DAG validation
-      grafana.ts          # Grafana Explore URL builder
       types.ts            # Shared TypeScript types (WorkflowInput, FlatStep, etc.)
   package.json
   tsconfig.json
@@ -181,4 +179,3 @@ ui/server/
 | `PGDATABASE` | `workflowui` | Database name           |
 | `PGUSER`     | `workflowui` | Database user           |
 | `PGPASSWORD` | `workflowui` | Database password       |
-| `GRAFANA_URL`| `http://localhost:3000` | Grafana base URL for explore redirects |

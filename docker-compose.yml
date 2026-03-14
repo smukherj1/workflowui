@@ -26,7 +26,6 @@ services:
       PGDATABASE: workflowui
       PGUSER: workflowui
       PGPASSWORD: workflowui
-      LOKI_URL: http://loki:3100
     depends_on:
       postgres:
         condition: service_healthy

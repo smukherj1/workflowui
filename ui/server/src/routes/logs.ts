@@ -1,6 +1,5 @@
 import { Router, type Request, type Response } from 'express';
-import { queryLogs, getStepDetail } from '../lib/db';
-import { buildGrafanaExploreUrl } from '../lib/grafana';
+import { queryLogs } from '../lib/db';
 
 const router = Router();
 
@@ -22,25 +21,6 @@ router.get('/:id/logs', async (req: Request, res: Response): Promise<void> => {
   } catch (err) {
     console.error('DB log query error:', err);
     res.status(500).json({ error: 'DB_ERROR', message: 'Failed to query logs' });
-  }
-});
-
-// GET /api/workflows/:id/steps/:uuid/logs/explore  →  302 redirect to Grafana
-router.get('/:id/steps/:uuid/logs/explore', async (req: Request, res: Response): Promise<void> => {
-  const { id, uuid } = req.params;
-
-  try {
-    const detail = await getStepDetail(id, uuid);
-    if (!detail) {
-      res.status(404).json({ error: 'NOT_FOUND', message: 'Step not found' });
-      return;
-    }
-
-    const grafanaUrl = buildGrafanaExploreUrl(id, detail.step.hierarchy_path as string);
-    res.redirect(302, grafanaUrl);
-  } catch (err) {
-    console.error('Error building Grafana URL:', err);
-    res.status(500).json({ error: 'SERVER_ERROR', message: 'Failed to build Grafana URL' });
   }
 });
 
