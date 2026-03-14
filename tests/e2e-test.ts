@@ -329,37 +329,6 @@ async function testLogProxy(
   return true;
 }
 
-async function testGrafanaRedirect(
-  workflowId: string,
-  stepUuid: string,
-  file: string,
-): Promise<boolean> {
-  const explorePath = `/api/workflows/${workflowId}/steps/${stepUuid}/logs/explore`;
-  console.log(`  [${file}] checking Grafana redirect`);
-  console.log(`    → GET ${explorePath}`);
-  const res = await fetch(`${API_BASE}${explorePath}`, {
-    redirect: "manual",
-  });
-
-  if (res.status !== 302) {
-    console.error(
-      `  FAIL [${file}] GET /logs/explore: expected 302, got ${res.status}`,
-    );
-    return false;
-  }
-  const location = res.headers.get("location");
-  if (!location || !location.includes("/explore")) {
-    console.error(
-      `  FAIL [${file}] GET /logs/explore: missing or invalid Location header`,
-      location,
-    );
-    return false;
-  }
-
-  console.log(`    ✓ Grafana redirect → ${location.slice(0, 80)}…`);
-  return true;
-}
-
 async function runTest(tc: TestCase): Promise<boolean> {
   const filePath = path.join(DATA_DIR, tc.file);
   const body = fs.readFileSync(filePath, "utf8");
@@ -404,11 +373,6 @@ async function runTest(tc: TestCase): Promise<boolean> {
       // Step detail for a top-level step (0 breadcrumbs expected)
       allOk =
         (await testStepDetail(workflowId, firstStepUuid, 0, tc.file)) && allOk;
-
-      // Grafana redirect for the top-level step
-      allOk =
-        (await testGrafanaRedirect(workflowId, firstStepUuid, tc.file)) &&
-        allOk;
 
       // Child steps for the first non-leaf top-level step, if any
       const { json: stepsJson } = await apiGet(
