@@ -26,6 +26,9 @@ export async function uploadWorkflow(
     headers: { "Content-Type": "application/json" },
     body: text,
   });
+  console.log(
+    `Uploading file ${file.name} (${file.size} bytes). Response status: ${res.status}`,
+  );
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: "Upload failed" }));
     const details = Array.isArray(body.details)
@@ -79,9 +82,7 @@ export async function getLogs(
   const params = new URLSearchParams({ stepPath });
   if (cursor) params.set("cursor", cursor);
   if (limit) params.set("limit", String(limit));
-  const res = await fetch(
-    `${API_BASE}/workflows/${workflowId}/logs?${params}`,
-  );
+  const res = await fetch(`${API_BASE}/workflows/${workflowId}/logs?${params}`);
   if (!res.ok) throw new ApiError("Failed to fetch logs", res.status);
   return res.json();
 }

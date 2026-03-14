@@ -160,6 +160,15 @@ For dev, the Vite dev server proxies `/api` requests to the Express server.
 - Run backend E2E test scripts using `bun run test:e2e-backend`
 - Run frontend E2E test scripts using `bun run test:e2e-frontend`
 
+## Known Issues
+
+### UI
+
+- Uploading a JSON not in the expected workflow schema shows a blank page.
+- For a valid build, the steps dependency display order needs to be reversed.
+- When diving into a step, there's no indication of the name of the parent
+  step and a link to navigate up the hierarchy.
+
 ## Future Work
 
 - Upgrade vite from v6 to v8 in the ui server.
