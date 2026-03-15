@@ -370,9 +370,9 @@ async function runTest(tc: TestCase): Promise<boolean> {
       const firstStepUuid = await testTopLevelSteps(workflowId, tc.file);
       if (!firstStepUuid) return false;
 
-      // Step detail for a top-level step (0 breadcrumbs expected)
+      // Step detail for a top-level step (1 breadcrumbs expected for the step itself)
       allOk =
-        (await testStepDetail(workflowId, firstStepUuid, 0, tc.file)) && allOk;
+        (await testStepDetail(workflowId, firstStepUuid, 1, tc.file)) && allOk;
 
       // Child steps for the first non-leaf top-level step, if any
       const { json: stepsJson } = await apiGet(
@@ -388,9 +388,9 @@ async function runTest(tc: TestCase): Promise<boolean> {
         const childUuid = await testChildSteps(workflowId, parentUuid, tc.file);
 
         if (childUuid) {
-          // Child step detail should have 1 breadcrumb (the parent)
+          // Child step detail should have 2 breadcrumbs (the parent and the child)
           allOk =
-            (await testStepDetail(workflowId, childUuid, 1, tc.file)) && allOk;
+            (await testStepDetail(workflowId, childUuid, 2, tc.file)) && allOk;
 
           // Log proxy for the child step path
           const childDetail = await apiGet(
