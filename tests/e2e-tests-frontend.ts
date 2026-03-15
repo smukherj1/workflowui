@@ -698,6 +698,68 @@ async function testElapsedTimeDisplayed(page: Page): Promise<boolean> {
   return assert(hasTimePattern, "Elapsed time values are displayed for steps");
 }
 
+async function testLargeWorkflowGridShowsAllSteps(
+  page: Page,
+): Promise<boolean> {
+  console.log("\n[17] Large Workflow Grid Loads All Pages via Auto-Fetch");
+
+  const result = await uploadFixture("large-linear.json");
+  if (!result) return assert(false, "Upload large-linear.json via API");
+
+  const viewPath = result.viewUrl.startsWith("http")
+    ? new URL(result.viewUrl).pathname
+    : result.viewUrl;
+  await page.goto(`${UI_BASE}${viewPath}`);
+  await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+  // Navigate into the Checkout step which has 4000 sub-steps
+  try {
+    await page.getByText("Checkout").first().waitFor({ timeout: 10_000 });
+    await page.getByText("Checkout").first().click();
+    await page.waitForURL(/\/steps\//, { timeout: 10_000 });
+  } catch {
+    return assert(false, "Checkout step found and clickable");
+  }
+
+  let ok = true;
+
+  // The server returns 500 steps per page. With 4000 sub-steps, there are 8 pages.
+  // Verify that steps beyond the first page (>= index 500) are eventually rendered,
+  // confirming that all pages are auto-fetched rather than only the first page.
+  try {
+    await page
+      .getByText("Checkout Step 500")
+      .first()
+      .waitFor({ timeout: 10_000 });
+    ok = assert(true, "Steps beyond first page (page 2+) are rendered") && ok;
+  } catch {
+    ok =
+      assert(
+        false,
+        "Steps beyond first page are rendered",
+        '"Checkout Step 500" not found — infinite scroll not loading more pages',
+      ) && ok;
+  }
+
+  // Verify the last step (index 3999) is also rendered, confirming all 8 pages loaded
+  try {
+    await page
+      .getByText("Checkout Step 3999")
+      .first()
+      .waitFor({ timeout: 10_000 });
+    ok = assert(true, "All 4000 steps are rendered (last step visible)") && ok;
+  } catch {
+    ok =
+      assert(
+        false,
+        "All 4000 steps are rendered (last step visible)",
+        '"Checkout Step 3999" not found — not all pages were fetched',
+      ) && ok;
+  }
+
+  return ok;
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -749,6 +811,7 @@ async function main() {
     testUploadError_invalidJSON,
     testUploadError_invalidWorkflowJSON,
     testElapsedTimeDisplayed,
+    testLargeWorkflowGridShowsAllSteps,
   ];
 
   for (const testFn of tests) {

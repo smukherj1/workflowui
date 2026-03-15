@@ -1,4 +1,5 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { getSteps } from "../lib/api";
 import { useWorkflowStore } from "../store/workflowStore";
 import GraphView from "./GraphView";
@@ -20,13 +21,19 @@ export default function GraphContainer({
 }: Props) {
   const { statusFilter, viewMode } = useWorkflowStore();
 
-  const { data, isLoading, isError, refetch } = useInfiniteQuery({
+  const { data, isLoading, isFetchingNextPage, isError, refetch, hasNextPage, fetchNextPage } = useInfiniteQuery({
     queryKey: ["steps", workflowId, parentId ?? null],
     queryFn: ({ pageParam }) =>
       getSteps(workflowId, parentId, pageParam as string | undefined),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   });
+
+  useEffect(() => {
+    if (hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   if (isLoading) {
     return (
