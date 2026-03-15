@@ -164,9 +164,8 @@ For dev, the Vite dev server proxies `/api` requests to the Express server.
 
 ### UI
 
-- Steps are rendered bottom to top in dependency order instead of top to bottom.
-- No way in UI to view merged logs for a step that has sub-steps.
 - 5000 sub-steps in a steps don't fall back to a grid view.
+- No way in UI to view merged logs for a step that has sub-steps.
 
 ## Future Work
 
