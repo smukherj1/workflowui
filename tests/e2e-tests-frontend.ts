@@ -21,7 +21,11 @@ const DATA_DIR = path.join(__dirname, "data");
 let passed = 0;
 let failed = 0;
 
-function assert(condition: boolean, testName: string, detail?: string): boolean {
+function assert(
+  condition: boolean,
+  testName: string,
+  detail?: string,
+): boolean {
   if (condition) {
     console.log(`  ✓ ${testName}`);
     return true;
@@ -53,12 +57,16 @@ async function testSpaServing(page: Page): Promise<boolean> {
 
   // React root exists and app has hydrated (React renders content into #root)
   const root = page.locator("#root");
-  let ok = assert(await root.count() === 1, "Page has #root element");
+  let ok = assert((await root.count()) === 1, "Page has #root element");
 
   // Wait for React to hydrate — some visible content should appear inside #root
   await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
   const innerHTML = await root.innerHTML();
-  ok = assert(innerHTML.length > 0, "React app has hydrated (#root is not empty)") && ok;
+  ok =
+    assert(
+      innerHTML.length > 0,
+      "React app has hydrated (#root is not empty)",
+    ) && ok;
 
   return ok;
 }
@@ -71,8 +79,11 @@ async function testUploadPageRenders(page: Page): Promise<boolean> {
   // The upload page should show a file input or drop zone
   const hasFileInput = (await page.locator('input[type="file"]').count()) > 0;
   const hasDropZone =
-    (await page.locator('[class*="drop"], [class*="upload"], [data-testid="upload"]').count()) > 0;
-  const hasUploadText = (await page.getByText(/upload|drop|choose.*file/i).count()) > 0;
+    (await page
+      .locator('[class*="drop"], [class*="upload"], [data-testid="upload"]')
+      .count()) > 0;
+  const hasUploadText =
+    (await page.getByText(/upload|drop|choose.*file/i).count()) > 0;
 
   let ok = assert(
     hasFileInput || hasDropZone || hasUploadText,
@@ -128,7 +139,12 @@ async function testWorkflowViewRendersDAG(page: Page): Promise<boolean> {
       await page.getByText(stepName).first().waitFor({ timeout: 10_000 });
       ok = assert(true, `Step "${stepName}" is rendered`) && ok;
     } catch {
-      ok = assert(false, `Step "${stepName}" is rendered`, "not found within timeout") && ok;
+      ok =
+        assert(
+          false,
+          `Step "${stepName}" is rendered`,
+          "not found within timeout",
+        ) && ok;
     }
   }
 
@@ -152,7 +168,10 @@ async function testWorkflowHeaderMetadata(page: Page): Promise<boolean> {
   // parallel-diamond.json metadata: repository=org/repo, branch=feature/x
   // Workflow name: parallel-diamond-pipeline
   try {
-    await page.getByText("parallel-diamond-pipeline").first().waitFor({ timeout: 10_000 });
+    await page
+      .getByText("parallel-diamond-pipeline")
+      .first()
+      .waitFor({ timeout: 10_000 });
     ok = assert(true, "Workflow name is displayed") && ok;
   } catch {
     ok = assert(false, "Workflow name is displayed") && ok;
@@ -162,7 +181,11 @@ async function testWorkflowHeaderMetadata(page: Page): Promise<boolean> {
   const pageText = await page.textContent("body");
   const hasRepo = pageText?.includes("org/repo") ?? false;
   const hasBranch = pageText?.includes("feature/x") ?? false;
-  ok = assert(hasRepo || hasBranch, "Workflow metadata (repo or branch) is displayed") && ok;
+  ok =
+    assert(
+      hasRepo || hasBranch,
+      "Workflow metadata (repo or branch) is displayed",
+    ) && ok;
 
   return ok;
 }
@@ -220,7 +243,11 @@ async function testClickStepNavigatesToSubSteps(page: Page): Promise<boolean> {
   let ok = assert(page.url().includes("/steps/"), "Navigated to sub-step view");
 
   // Sub-step view should show CI's children: Build Frontend, Build Backend, Integration Tests
-  for (const childName of ["Build Frontend", "Build Backend", "Integration Tests"]) {
+  for (const childName of [
+    "Build Frontend",
+    "Build Backend",
+    "Integration Tests",
+  ]) {
     try {
       await page.getByText(childName).first().waitFor({ timeout: 10_000 });
       ok = assert(true, `Child step "${childName}" is rendered`) && ok;
@@ -252,15 +279,22 @@ async function testBreadcrumbNavigation(page: Page): Promise<boolean> {
   try {
     await breadcrumb.waitFor({ timeout: 10_000 });
     const breadcrumbText = await breadcrumb.textContent();
-    ok = assert(
-      breadcrumbText?.includes("nested-hierarchy-pipeline") ?? false,
-      "Workflow-level breadcrumb shows workflow name",
-    ) && ok;
+    ok =
+      assert(
+        breadcrumbText?.includes("nested-hierarchy-pipeline") ?? false,
+        "Workflow-level breadcrumb shows workflow name",
+      ) && ok;
 
     // The workflow name should NOT be a link at the workflow level
-    const workflowLink = breadcrumb.locator('a').filter({ hasText: "nested-hierarchy-pipeline" });
+    const workflowLink = breadcrumb
+      .locator("a")
+      .filter({ hasText: "nested-hierarchy-pipeline" });
     const linkCount = await workflowLink.count();
-    ok = assert(linkCount === 0, "Workflow-level breadcrumb: workflow name is plain text (not a link)") && ok;
+    ok =
+      assert(
+        linkCount === 0,
+        "Workflow-level breadcrumb: workflow name is plain text (not a link)",
+      ) && ok;
   } catch {
     ok = assert(false, "Breadcrumb nav is rendered at workflow level") && ok;
   }
@@ -285,24 +319,31 @@ async function testBreadcrumbNavigation(page: Page): Promise<boolean> {
       { timeout: 10_000 },
     );
     const breadcrumbText = await breadcrumb.textContent();
-    ok = assert(
-      (breadcrumbText?.includes("nested-hierarchy-pipeline") && breadcrumbText?.includes("CI")) ?? false,
-      "CI-level breadcrumb shows: workflow name > CI",
-    ) && ok;
+    ok =
+      assert(
+        (breadcrumbText?.includes("nested-hierarchy-pipeline") &&
+          breadcrumbText?.includes("CI")) ??
+          false,
+        "CI-level breadcrumb shows: workflow name > CI",
+      ) && ok;
 
     // Workflow name should now be a link
-    const workflowLink = breadcrumb.locator('a').filter({ hasText: "nested-hierarchy-pipeline" });
-    ok = assert(
-      (await workflowLink.count()) === 1,
-      "CI-level breadcrumb: workflow name is a link",
-    ) && ok;
+    const workflowLink = breadcrumb
+      .locator("a")
+      .filter({ hasText: "nested-hierarchy-pipeline" });
+    ok =
+      assert(
+        (await workflowLink.count()) === 1,
+        "CI-level breadcrumb: workflow name is a link",
+      ) && ok;
 
     // CI should be plain text (last crumb), not a link
-    const ciLink = breadcrumb.locator('a').filter({ hasText: /^CI$/ });
-    ok = assert(
-      (await ciLink.count()) === 0,
-      "CI-level breadcrumb: CI is plain text (current view, not a link)",
-    ) && ok;
+    const ciLink = breadcrumb.locator("a").filter({ hasText: /^CI$/ });
+    ok =
+      assert(
+        (await ciLink.count()) === 0,
+        "CI-level breadcrumb: CI is plain text (current view, not a link)",
+      ) && ok;
   } catch {
     ok = assert(false, "CI-level breadcrumb renders correctly") && ok;
   }
@@ -310,7 +351,10 @@ async function testBreadcrumbNavigation(page: Page): Promise<boolean> {
   // ── Level 3: Integration Tests step view ────────────────────────────────────
   // Navigate into Integration Tests (a non-leaf child of CI)
   try {
-    await page.getByText("Integration Tests").first().waitFor({ timeout: 10_000 });
+    await page
+      .getByText("Integration Tests")
+      .first()
+      .waitFor({ timeout: 10_000 });
     await page.getByText("Integration Tests").first().click();
     await page.waitForURL(/\/steps\//, { timeout: 10_000 });
   } catch {
@@ -327,59 +371,79 @@ async function testBreadcrumbNavigation(page: Page): Promise<boolean> {
       { timeout: 10_000 },
     );
     const breadcrumbText = await breadcrumb.textContent();
-    ok = assert(
-      (breadcrumbText?.includes("nested-hierarchy-pipeline") &&
-        breadcrumbText?.includes("CI") &&
-        breadcrumbText?.includes("Integration Tests")) ?? false,
-      "Integration Tests-level breadcrumb shows full path: workflow > CI > Integration Tests",
-    ) && ok;
+    ok =
+      assert(
+        (breadcrumbText?.includes("nested-hierarchy-pipeline") &&
+          breadcrumbText?.includes("CI") &&
+          breadcrumbText?.includes("Integration Tests")) ??
+          false,
+        "Integration Tests-level breadcrumb shows full path: workflow > CI > Integration Tests",
+      ) && ok;
 
     // Workflow name should be a link
-    const workflowLink = breadcrumb.locator('a').filter({ hasText: "nested-hierarchy-pipeline" });
-    ok = assert(
-      (await workflowLink.count()) === 1,
-      "Integration Tests-level breadcrumb: workflow name is a link",
-    ) && ok;
+    const workflowLink = breadcrumb
+      .locator("a")
+      .filter({ hasText: "nested-hierarchy-pipeline" });
+    ok =
+      assert(
+        (await workflowLink.count()) === 1,
+        "Integration Tests-level breadcrumb: workflow name is a link",
+      ) && ok;
 
     // CI should be a link (ancestor, not current)
-    const ciLink = breadcrumb.locator('a').filter({ hasText: /^CI$/ });
-    ok = assert(
-      (await ciLink.count()) === 1,
-      "Integration Tests-level breadcrumb: CI is a link (ancestor)",
-    ) && ok;
+    const ciLink = breadcrumb.locator("a").filter({ hasText: /^CI$/ });
+    ok =
+      assert(
+        (await ciLink.count()) === 1,
+        "Integration Tests-level breadcrumb: CI is a link (ancestor)",
+      ) && ok;
 
     // Integration Tests should be plain text (current view)
-    const integrationTestsLink = breadcrumb.locator('a').filter({ hasText: "Integration Tests" });
-    ok = assert(
-      (await integrationTestsLink.count()) === 0,
-      "Integration Tests-level breadcrumb: Integration Tests is plain text (current view)",
-    ) && ok;
+    const integrationTestsLink = breadcrumb
+      .locator("a")
+      .filter({ hasText: "Integration Tests" });
+    ok =
+      assert(
+        (await integrationTestsLink.count()) === 0,
+        "Integration Tests-level breadcrumb: Integration Tests is plain text (current view)",
+      ) && ok;
   } catch {
-    ok = assert(false, "Integration Tests-level breadcrumb renders correctly") && ok;
+    ok =
+      assert(false, "Integration Tests-level breadcrumb renders correctly") &&
+      ok;
   }
 
   // ── Navigate back via breadcrumb link ───────────────────────────────────────
   // Click the workflow name link in the breadcrumb to go back to top level
   try {
-    const workflowLink = breadcrumb.locator('a').filter({ hasText: "nested-hierarchy-pipeline" });
+    const workflowLink = breadcrumb
+      .locator("a")
+      .filter({ hasText: "nested-hierarchy-pipeline" });
     await workflowLink.click();
     await page.waitForURL(/\/workflows\/[^/]+$/, { timeout: 10_000 });
-    ok = assert(true, "Breadcrumb workflow link navigates back to workflow view") && ok;
+    ok =
+      assert(
+        true,
+        "Breadcrumb workflow link navigates back to workflow view",
+      ) && ok;
 
     // After navigating back, breadcrumb should reset: workflow name as plain text, no step crumbs
     await page.waitForFunction(
       () => {
         const nav = document.querySelector('[data-testid="breadcrumb-nav"]');
-        const links = nav?.querySelectorAll('a') ?? [];
+        const links = nav?.querySelectorAll("a") ?? [];
         return links.length === 0;
       },
       { timeout: 10_000 },
     );
-    const workflowLevelLink = breadcrumb.locator('a').filter({ hasText: "nested-hierarchy-pipeline" });
-    ok = assert(
-      (await workflowLevelLink.count()) === 0,
-      "After breadcrumb navigation back: workflow name is plain text again",
-    ) && ok;
+    const workflowLevelLink = breadcrumb
+      .locator("a")
+      .filter({ hasText: "nested-hierarchy-pipeline" });
+    ok =
+      assert(
+        (await workflowLevelLink.count()) === 0,
+        "After breadcrumb navigation back: workflow name is plain text again",
+      ) && ok;
   } catch {
     ok = assert(false, "Breadcrumb link back-navigation and reset") && ok;
   }
@@ -408,7 +472,9 @@ async function testLogPanelOpens(page: Page): Promise<boolean> {
     await logToggle.click();
 
     // After clicking, some log content should appear — or at least a log panel container
-    const logPanel = page.locator('[class*="log"], [data-testid="log-panel"], [class*="panel"]');
+    const logPanel = page.locator(
+      '[class*="log"], [data-testid="log-panel"], [class*="panel"]',
+    );
     await logPanel.first().waitFor({ timeout: 5_000 });
     ok = assert(true, "Log panel opens on toggle click") && ok;
   } catch {
@@ -416,7 +482,10 @@ async function testLogPanelOpens(page: Page): Promise<boolean> {
     try {
       await page.getByText("Checkout").first().click();
       // Wait for log content to appear
-      await page.getByText("Cloning into repo...").first().waitFor({ timeout: 10_000 });
+      await page
+        .getByText("Cloning into repo...")
+        .first()
+        .waitFor({ timeout: 10_000 });
       ok = assert(true, "Log content visible after clicking leaf step") && ok;
     } catch {
       ok = assert(false, "Log panel opens or log content visible") && ok;
@@ -449,7 +518,10 @@ async function testLogPanelShowsContent(page: Page): Promise<boolean> {
   // Log content from simple-linear.json Checkout step: "Cloning into repo..."
   let ok = true;
   try {
-    await page.getByText("Cloning into repo...").first().waitFor({ timeout: 10_000 });
+    await page
+      .getByText("Cloning into repo...")
+      .first()
+      .waitFor({ timeout: 10_000 });
     ok = assert(true, 'Log line "Cloning into repo..." is displayed') && ok;
   } catch {
     ok = assert(false, 'Log line "Cloning into repo..." is displayed') && ok;
@@ -474,11 +546,20 @@ async function testClientSideRoutingFallback(page: Page): Promise<boolean> {
   await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
   const root = page.locator("#root");
   const innerHTML = await root.innerHTML();
-  let ok = assert(innerHTML.length > 0, "Deep link loads SPA and renders content");
+  let ok = assert(
+    innerHTML.length > 0,
+    "Deep link loads SPA and renders content",
+  );
 
   // Also test that a nonexistent workflow path still loads the SPA shell
-  const res = await page.goto(`${UI_BASE}/workflows/00000000-0000-0000-0000-000000000000`);
-  ok = assert(res?.status() === 200, "Nonexistent workflow path returns 200 (SPA fallback)") && ok;
+  const res = await page.goto(
+    `${UI_BASE}/workflows/00000000-0000-0000-0000-000000000000`,
+  );
+  ok =
+    assert(
+      res?.status() === 200,
+      "Nonexistent workflow path returns 200 (SPA fallback)",
+    ) && ok;
 
   return ok;
 }
@@ -507,23 +588,37 @@ async function testBrowserBackNavigation(page: Page): Promise<boolean> {
   }
 
   const subStepUrl = page.url();
-  let ok = assert(subStepUrl !== workflowUrl, "URL changed after clicking step");
+  let ok = assert(
+    subStepUrl !== workflowUrl,
+    "URL changed after clicking step",
+  );
 
   // Go back
   await page.goBack();
   await page.waitForURL(workflowUrl, { timeout: 10_000 });
-  ok = assert(page.url() === workflowUrl, "Browser back returns to workflow view") && ok;
+  ok =
+    assert(
+      page.url() === workflowUrl,
+      "Browser back returns to workflow view",
+    ) && ok;
 
   // Go forward
   await page.goForward();
   await page.waitForURL(subStepUrl, { timeout: 10_000 });
-  ok = assert(page.url() === subStepUrl, "Browser forward returns to sub-step view") && ok;
+  ok =
+    assert(
+      page.url() === subStepUrl,
+      "Browser forward returns to sub-step view",
+    ) && ok;
 
   return ok;
 }
 
-async function testUploadValidationError(page: Page): Promise<boolean> {
-  console.log("\n[13] Upload Invalid File Shows Error");
+async function testUploadErrorHelper(
+  page: Page,
+  workflowJson: string,
+  expectedErrors: string[],
+): Promise<boolean> {
   await page.goto(UI_BASE);
   await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
 
@@ -532,8 +627,8 @@ async function testUploadValidationError(page: Page): Promise<boolean> {
     return assert(false, "File input exists on upload page");
   }
 
-  // Upload the invalid-cycle fixture
-  const fixturePath = path.join(DATA_DIR, "invalid-cycle.json");
+  // Upload the JSON file.
+  const fixturePath = path.join(DATA_DIR, workflowJson);
   await fileInput.setInputFiles(fixturePath);
 
   // Should NOT navigate to a workflow view — should stay and show error
@@ -549,18 +644,43 @@ async function testUploadValidationError(page: Page): Promise<boolean> {
 
   // Should display some error message
   const pageText = await page.textContent("body");
-  const hasError =
-    pageText?.toLowerCase().includes("error") ||
-    pageText?.toLowerCase().includes("invalid") ||
-    pageText?.toLowerCase().includes("cycle") ||
-    false;
-  ok = assert(hasError, "Error message is displayed for invalid upload") && ok;
+  for (const expectedError of expectedErrors) {
+    const hasExpectedError =
+      pageText?.toLowerCase().includes(expectedError.toLowerCase()) ?? false;
+    ok =
+      assert(hasExpectedError, `Error message includes "${expectedError}"`) &&
+      ok;
+  }
 
   return ok;
 }
 
+async function testUploadError_workflowHasCycles(page: Page): Promise<boolean> {
+  console.log("\n[13] Upload Workflow With Cycles Shows Error");
+  return testUploadErrorHelper(page, "invalid-cycle.json", [
+    "upload",
+    "error",
+    "cycle",
+  ]);
+}
+
+async function testUploadError_invalidJSON(page: Page): Promise<boolean> {
+  console.log("\n[14] Upload Invalid JSON Shows Error");
+  return testUploadErrorHelper(page, "invalid-json.json", ["upload", "error"]);
+}
+
+async function testUploadError_invalidWorkflowJSON(
+  page: Page,
+): Promise<boolean> {
+  console.log("\n[15] Upload Invalid Workflow JSON Shows Error");
+  return testUploadErrorHelper(page, "invalid-schema.json", [
+    "upload",
+    "error",
+  ]);
+}
+
 async function testElapsedTimeDisplayed(page: Page): Promise<boolean> {
-  console.log("\n[14] Step Nodes Show Elapsed Time");
+  console.log("\n[16] Step Nodes Show Elapsed Time");
 
   const result = await uploadFixture("simple-linear.json");
   if (!result) return assert(false, "Upload simple-linear.json via API");
@@ -599,7 +719,9 @@ async function main() {
   try {
     const uiRes = await fetch(`${UI_BASE}/`);
     if (uiRes.status !== 200) {
-      console.error(`UI at ${UI_BASE} returned ${uiRes.status}. Is it running?`);
+      console.error(
+        `UI at ${UI_BASE} returned ${uiRes.status}. Is it running?`,
+      );
       process.exit(1);
     }
     console.log(`UI health: OK\n`);
@@ -623,7 +745,9 @@ async function main() {
     testLogPanelShowsContent,
     testClientSideRoutingFallback,
     testBrowserBackNavigation,
-    testUploadValidationError,
+    testUploadError_workflowHasCycles,
+    testUploadError_invalidJSON,
+    testUploadError_invalidWorkflowJSON,
     testElapsedTimeDisplayed,
   ];
 

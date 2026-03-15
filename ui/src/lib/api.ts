@@ -17,6 +17,25 @@ export class ApiError extends Error {
   }
 }
 
+function extractDetails(body: Record<string, unknown>): string[] | undefined {
+  if (Array.isArray(body.details)) {
+    return body.details.map((item) => {
+      if (typeof item === "string") return item;
+      if (item && typeof item === "object" && "message" in item) {
+        return String((item as Record<string, unknown>).message);
+      }
+      return String(item);
+    });
+  }
+  if (body.details) {
+    return [String(body.details)];
+  }
+  if (body.message) {
+    return [String(body.message)];
+  }
+  return undefined;
+}
+
 export async function uploadWorkflow(
   file: File,
 ): Promise<{ workflowId: string; viewUrl: string }> {
@@ -30,14 +49,7 @@ export async function uploadWorkflow(
   console.log(`Upload file ${file.name} completed with status ${res.status}.`);
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: "Upload failed" }));
-    const details = Array.isArray(body.details)
-      ? body.details
-      : body.details
-        ? [String(body.details)]
-        : body.message
-          ? [body.message]
-          : undefined;
-    throw new ApiError(body.error || "Upload failed", res.status, details);
+    throw new ApiError(body.error || "Upload failed", res.status, extractDetails(body));
   }
   return res.json();
 }
