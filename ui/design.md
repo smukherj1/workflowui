@@ -42,7 +42,7 @@ App                                  src/App.tsx
 │
 └── WorkflowLayout                   src/components/WorkflowLayout.tsx
     ├── WorkflowHeader               src/components/WorkflowHeader.tsx
-    ├── workflow name breadcrumb     (inline nav in WorkflowLayout)
+    ├── unified breadcrumb bar       (inline nav in WorkflowLayout)
     ├── StatusFilterBar              src/components/StatusFilterBar.tsx
     │
     ├── WorkflowView                 src/pages/WorkflowView.tsx
@@ -53,7 +53,6 @@ App                                  src/App.tsx
     │           └── StepCard[]       src/components/StepCard.tsx
     │
     ├── StepView                     src/pages/StepView.tsx
-    │   ├── step breadcrumbs         (inline nav in StepView)
     │   ├── GraphContainer           (if step has children)
     │   └── LeafDetail               src/components/LeafDetail.tsx
     │
@@ -86,6 +85,7 @@ Zustand store holding all transient UI state:
 - **Log panel**: `logPanelOpen`, `toggleLogPanel`, `logStepPath`, `setLogStepPath`, `logFilter`, `setLogFilter`
 - **Step filter**: `statusFilter`, `setStatusFilter`
 - **View mode**: `viewMode` (`"dagre"` | `"grid"`), `setViewMode`
+- **Breadcrumbs**: `stepBreadcrumbs` (array of `{ uuid, name }`), `setStepBreadcrumbs`
 
 TanStack Query owns all server state. Zustand holds only UI state that isn't derivable from the URL or server responses.
 
@@ -114,7 +114,7 @@ The drop zone element has `data-testid="upload"` and `className="upload-dropzone
 Parent route wrapper for all `/workflows/*` routes. Fetches workflow detail once via `useQuery(['workflow', workflowId], staleTime: Infinity)` and renders:
 
 1. `WorkflowHeader` with the fetched workflow data
-2. A `<nav>` with the workflow name as a `<Link>` back to `/workflows/:workflowId` — this link is always present regardless of nesting depth, so breadcrumb navigation back to the top level always works
+2. A unified breadcrumb `<nav>` that reads `stepBreadcrumbs` from the Zustand store and renders the full workflow-to-step path. When `stepBreadcrumbs` is empty (at workflow level), the workflow name is shown as highlighted plain text. Otherwise the workflow name is a `<Link>` back to the top level, followed by each step crumb — all but the last as links, the last as highlighted text.
 3. `StatusFilterBar`
 4. A `<div>` containing the `<Outlet>` (either `WorkflowView` or `StepView`)
 5. `LogPanel` fixed to the bottom of the viewport
@@ -190,9 +190,9 @@ Compact step representation for the grid view. Shows `StatusBadge`, name, and el
 
 Fetches step detail via `useQuery(['stepDetail', workflowId, uuid], staleTime: Infinity)`, which returns the step's `hierarchyPath`, `depth`, and a `breadcrumbs` array of `{ uuid, name }` objects from the API.
 
-Renders a step breadcrumb trail immediately below the layout's workflow-name breadcrumb. Each breadcrumb except the last is a `<Link>` to that step's URL; the last is plain text (current step). This is separate from `WorkflowLayout`'s breadcrumb so the layout doesn't need to know about the step detail query.
+On load, calls `setStepBreadcrumbs(breadcrumbs)` from the Zustand store so `WorkflowLayout` renders the full unified breadcrumb bar. Step breadcrumbs are no longer rendered inside `StepView`.
 
-Content below the breadcrumbs:
+Content:
 - **Non-leaf step**: renders `GraphContainer` with `parentId=uuid` and `parentPath=step.hierarchyPath`
 - **Leaf step**: renders `LeafDetail`
 
@@ -237,11 +237,12 @@ The log panel is always present but collapsed. It opens when:
 
 ### Breadcrumb Navigation Flow
 
-Two layers of breadcrumbs are visible when on a step view:
-1. `WorkflowLayout` always renders the workflow name as a `<Link>` to the top-level workflow URL.
-2. `StepView` renders the `breadcrumbs` array from the step detail API as `> Parent > Current Step`, where each ancestor is a link and the current step is plain text.
+A single unified breadcrumb bar in `WorkflowLayout` shows the full path from the workflow root to the current view:
 
-Clicking the workflow name returns to the top-level DAG. Clicking an ancestor step in the step breadcrumbs navigates to that step's sub-step view.
+- At the workflow level (`WorkflowView` mounted): `WorkflowView` clears `stepBreadcrumbs` on mount, so only the workflow name appears (highlighted, no link).
+- At a step level (`StepView` mounted): `StepView` calls `setStepBreadcrumbs(breadcrumbs)` on load; `WorkflowLayout` re-renders to show workflow name (as a link) `>` ancestor steps (as links) `>` current step (highlighted).
+
+Clicking the workflow name navigates to `/workflows/:workflowId`. Clicking an ancestor step navigates to that step's sub-step view, triggering a new `StepView` mount and breadcrumb update.
 
 ---
 

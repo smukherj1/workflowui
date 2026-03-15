@@ -4,6 +4,7 @@ import { getWorkflow } from "../lib/api";
 import WorkflowHeader from "./WorkflowHeader";
 import StatusFilterBar from "./StatusFilterBar";
 import LogPanel from "./LogPanel";
+import { useWorkflowStore } from "../store/workflowStore";
 import type { WorkflowDetail } from "../lib/types";
 
 interface LayoutContext {
@@ -27,6 +28,9 @@ export default function WorkflowLayout() {
     staleTime: Infinity,
     enabled: !!workflowId,
   });
+
+  const stepBreadcrumbs = useWorkflowStore((s) => s.stepBreadcrumbs);
+  const isAtWorkflowLevel = stepBreadcrumbs.length === 0;
 
   if (isLoading) {
     return (
@@ -78,8 +82,9 @@ export default function WorkflowLayout() {
       }}
     >
       <WorkflowHeader workflow={workflow} />
-      {/* Workflow name breadcrumb — always a link back to top-level */}
+      {/* Unified breadcrumb bar */}
       <nav
+        data-testid="breadcrumb-nav"
         style={{
           display: "flex",
           alignItems: "center",
@@ -91,12 +96,34 @@ export default function WorkflowLayout() {
           flexWrap: "wrap",
         }}
       >
-        <Link
-          to={`/workflows/${workflowId}`}
-          style={{ color: "#60a5fa", textDecoration: "none" }}
-        >
-          {workflow.name}
-        </Link>
+        {isAtWorkflowLevel ? (
+          <span style={{ color: "#e2e8f0" }}>{workflow.name}</span>
+        ) : (
+          <Link
+            to={`/workflows/${workflowId}`}
+            style={{ color: "#60a5fa", textDecoration: "none" }}
+          >
+            {workflow.name}
+          </Link>
+        )}
+        {stepBreadcrumbs.map((crumb, i) => (
+          <span
+            key={crumb.uuid}
+            style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}
+          >
+            <span style={{ color: "#475569" }}>&gt;</span>
+            {i === stepBreadcrumbs.length - 1 ? (
+              <span style={{ color: "#e2e8f0" }}>{crumb.name}</span>
+            ) : (
+              <Link
+                to={`/workflows/${workflowId}/steps/${crumb.uuid}`}
+                style={{ color: "#60a5fa", textDecoration: "none" }}
+              >
+                {crumb.name}
+              </Link>
+            )}
+          </span>
+        ))}
       </nav>
       <StatusFilterBar />
       <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>

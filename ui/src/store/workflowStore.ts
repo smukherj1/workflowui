@@ -12,6 +12,8 @@ interface WorkflowStore {
   setStatusFilter: (statuses: StepStatus[]) => void;
   viewMode: "dagre" | "grid";
   setViewMode: (mode: "dagre" | "grid") => void;
+  stepBreadcrumbs: Array<{ uuid: string; name: string }>;
+  setStepBreadcrumbs: (crumbs: Array<{ uuid: string; name: string }>) => void;
 }
 
 export const useWorkflowStore = create<WorkflowStore>((set) => ({
@@ -25,4 +27,6 @@ export const useWorkflowStore = create<WorkflowStore>((set) => ({
   setStatusFilter: (statuses) => set({ statusFilter: statuses }),
   viewMode: "dagre",
   setViewMode: (mode) => set({ viewMode: mode }),
+  stepBreadcrumbs: [],
+  setStepBreadcrumbs: (crumbs) => set({ stepBreadcrumbs: crumbs }),
 }));

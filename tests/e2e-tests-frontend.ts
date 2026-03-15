@@ -244,33 +244,144 @@ async function testBreadcrumbNavigation(page: Page): Promise<boolean> {
   await page.goto(`${UI_BASE}${viewPath}`);
   await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
 
+  let ok = true;
+  const breadcrumb = page.locator('[data-testid="breadcrumb-nav"]');
+
+  // ── Level 1: workflow view ──────────────────────────────────────────────────
+  // Breadcrumb should show only the workflow name as plain text (no link)
+  try {
+    await breadcrumb.waitFor({ timeout: 10_000 });
+    const breadcrumbText = await breadcrumb.textContent();
+    ok = assert(
+      breadcrumbText?.includes("nested-hierarchy-pipeline") ?? false,
+      "Workflow-level breadcrumb shows workflow name",
+    ) && ok;
+
+    // The workflow name should NOT be a link at the workflow level
+    const workflowLink = breadcrumb.locator('a').filter({ hasText: "nested-hierarchy-pipeline" });
+    const linkCount = await workflowLink.count();
+    ok = assert(linkCount === 0, "Workflow-level breadcrumb: workflow name is plain text (not a link)") && ok;
+  } catch {
+    ok = assert(false, "Breadcrumb nav is rendered at workflow level") && ok;
+  }
+
+  // ── Level 2: CI step view ───────────────────────────────────────────────────
   // Navigate into CI sub-steps
   try {
     await page.getByText("CI").first().waitFor({ timeout: 10_000 });
     await page.getByText("CI").first().click();
     await page.waitForURL(/\/steps\//, { timeout: 10_000 });
   } catch {
-    return assert(false, "Navigate into CI sub-steps");
+    return assert(false, "Navigate into CI sub-steps") && ok;
   }
 
-  // Breadcrumbs should show workflow name or "CI" as part of the trail
-  const pageText = await page.textContent("body");
-  let ok = assert(
-    pageText?.includes("nested-hierarchy-pipeline") || pageText?.includes("CI") || false,
-    "Breadcrumbs display hierarchy context",
-  );
-
-  // Click the workflow name breadcrumb to navigate back to top-level
+  // Breadcrumb should show: [workflow name link] > [CI plain text]
   try {
-    const workflowLink = page.getByText("nested-hierarchy-pipeline").first();
-    if ((await workflowLink.count()) > 0) {
-      await workflowLink.click();
-      await page.waitForURL(/\/workflows\/[^/]+$/, { timeout: 10_000 });
-      ok = assert(true, "Breadcrumb click navigates back to workflow view") && ok;
-    }
+    await page.waitForFunction(
+      () => {
+        const nav = document.querySelector('[data-testid="breadcrumb-nav"]');
+        return nav?.textContent?.includes("CI") ?? false;
+      },
+      { timeout: 10_000 },
+    );
+    const breadcrumbText = await breadcrumb.textContent();
+    ok = assert(
+      (breadcrumbText?.includes("nested-hierarchy-pipeline") && breadcrumbText?.includes("CI")) ?? false,
+      "CI-level breadcrumb shows: workflow name > CI",
+    ) && ok;
+
+    // Workflow name should now be a link
+    const workflowLink = breadcrumb.locator('a').filter({ hasText: "nested-hierarchy-pipeline" });
+    ok = assert(
+      (await workflowLink.count()) === 1,
+      "CI-level breadcrumb: workflow name is a link",
+    ) && ok;
+
+    // CI should be plain text (last crumb), not a link
+    const ciLink = breadcrumb.locator('a').filter({ hasText: /^CI$/ });
+    ok = assert(
+      (await ciLink.count()) === 0,
+      "CI-level breadcrumb: CI is plain text (current view, not a link)",
+    ) && ok;
   } catch {
-    // Breadcrumb might use different text — not a hard failure
-    console.log("    (breadcrumb back-navigation not verified — link text may differ)");
+    ok = assert(false, "CI-level breadcrumb renders correctly") && ok;
+  }
+
+  // ── Level 3: Integration Tests step view ────────────────────────────────────
+  // Navigate into Integration Tests (a non-leaf child of CI)
+  try {
+    await page.getByText("Integration Tests").first().waitFor({ timeout: 10_000 });
+    await page.getByText("Integration Tests").first().click();
+    await page.waitForURL(/\/steps\//, { timeout: 10_000 });
+  } catch {
+    return assert(false, "Navigate into Integration Tests sub-steps") && ok;
+  }
+
+  // Breadcrumb should show: [workflow name link] > [CI link] > [Integration Tests plain text]
+  try {
+    await page.waitForFunction(
+      () => {
+        const nav = document.querySelector('[data-testid="breadcrumb-nav"]');
+        return nav?.textContent?.includes("Integration Tests") ?? false;
+      },
+      { timeout: 10_000 },
+    );
+    const breadcrumbText = await breadcrumb.textContent();
+    ok = assert(
+      (breadcrumbText?.includes("nested-hierarchy-pipeline") &&
+        breadcrumbText?.includes("CI") &&
+        breadcrumbText?.includes("Integration Tests")) ?? false,
+      "Integration Tests-level breadcrumb shows full path: workflow > CI > Integration Tests",
+    ) && ok;
+
+    // Workflow name should be a link
+    const workflowLink = breadcrumb.locator('a').filter({ hasText: "nested-hierarchy-pipeline" });
+    ok = assert(
+      (await workflowLink.count()) === 1,
+      "Integration Tests-level breadcrumb: workflow name is a link",
+    ) && ok;
+
+    // CI should be a link (ancestor, not current)
+    const ciLink = breadcrumb.locator('a').filter({ hasText: /^CI$/ });
+    ok = assert(
+      (await ciLink.count()) === 1,
+      "Integration Tests-level breadcrumb: CI is a link (ancestor)",
+    ) && ok;
+
+    // Integration Tests should be plain text (current view)
+    const integrationTestsLink = breadcrumb.locator('a').filter({ hasText: "Integration Tests" });
+    ok = assert(
+      (await integrationTestsLink.count()) === 0,
+      "Integration Tests-level breadcrumb: Integration Tests is plain text (current view)",
+    ) && ok;
+  } catch {
+    ok = assert(false, "Integration Tests-level breadcrumb renders correctly") && ok;
+  }
+
+  // ── Navigate back via breadcrumb link ───────────────────────────────────────
+  // Click the workflow name link in the breadcrumb to go back to top level
+  try {
+    const workflowLink = breadcrumb.locator('a').filter({ hasText: "nested-hierarchy-pipeline" });
+    await workflowLink.click();
+    await page.waitForURL(/\/workflows\/[^/]+$/, { timeout: 10_000 });
+    ok = assert(true, "Breadcrumb workflow link navigates back to workflow view") && ok;
+
+    // After navigating back, breadcrumb should reset: workflow name as plain text, no step crumbs
+    await page.waitForFunction(
+      () => {
+        const nav = document.querySelector('[data-testid="breadcrumb-nav"]');
+        const links = nav?.querySelectorAll('a') ?? [];
+        return links.length === 0;
+      },
+      { timeout: 10_000 },
+    );
+    const workflowLevelLink = breadcrumb.locator('a').filter({ hasText: "nested-hierarchy-pipeline" });
+    ok = assert(
+      (await workflowLevelLink.count()) === 0,
+      "After breadcrumb navigation back: workflow name is plain text again",
+    ) && ok;
+  } catch {
+    ok = assert(false, "Breadcrumb link back-navigation and reset") && ok;
   }
 
   return ok;
