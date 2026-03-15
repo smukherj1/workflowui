@@ -5,7 +5,7 @@ import GraphView from "./GraphView";
 import GridFallback from "./GridFallback";
 import type { Step, Dependency } from "../lib/types";
 
-const GRID_THRESHOLD = 10_000;
+const GRID_THRESHOLD = 100;
 
 interface Props {
   workflowId: string;
@@ -76,7 +76,8 @@ export default function GraphContainer({
   }
 
   const allSteps: Step[] = data?.pages.flatMap((p) => p.steps) ?? [];
-  const allDeps: Dependency[] = data?.pages.flatMap((p) => p.dependencies) ?? [];
+  const allDeps: Dependency[] =
+    data?.pages.flatMap((p) => p.dependencies) ?? [];
 
   const filteredSteps =
     statusFilter.length === 0
@@ -99,12 +100,13 @@ export default function GraphContainer({
     );
   }
 
+  console.log(
+    `Rendering GraphContainer with ${filteredSteps.length} steps and ${allDeps.length} dependencies. View mode: ${viewMode}.`,
+  );
   const useGrid = allSteps.length > GRID_THRESHOLD || viewMode === "grid";
 
   if (useGrid) {
-    return (
-      <GridFallback steps={filteredSteps} parentPath={parentPath} />
-    );
+    return <GridFallback steps={filteredSteps} parentPath={parentPath} />;
   }
 
   const visibleDeps = allDeps.filter(
