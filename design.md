@@ -165,10 +165,8 @@ For dev, the Vite dev server proxies `/api` requests to the Express server.
 ### UI
 
 - Uploading a JSON not in the expected workflow schema shows a blank page.
-- For a valid build, the steps dependency display order needs to be reversed.
-- When diving into a step, there's no indication of the name of the parent
-  step and a link to navigate up the hierarchy.
 
 ## Future Work
 
-- Use drizzle in ui/server for postgres queries.
+- Use drizzle in ui/server for type safe postgres queries.
+- Replace express JS with Hono for backend API Server for typesafe requests & responses.

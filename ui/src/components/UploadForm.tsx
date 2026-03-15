@@ -23,11 +23,10 @@ export default function UploadForm() {
         : result.viewUrl;
       navigate(path);
     } catch (err) {
+      console.log(`Error uploading file ${file.name}:`, err);
       if (err instanceof ApiError) {
         setErrors(
-          err.details?.length
-            ? err.details
-            : [err.message || "Upload failed"],
+          err.details?.length ? err.details : [err.message || "Upload failed"],
         );
       } else {
         setErrors(["A network error occurred. Please try again."]);
@@ -50,7 +49,14 @@ export default function UploadForm() {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1rem", alignItems: "center" }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "1rem",
+        alignItems: "center",
+      }}
+    >
       <div
         data-testid="upload"
         className="upload-dropzone"
@@ -87,10 +93,18 @@ export default function UploadForm() {
         ) : (
           <div style={{ color: "#94a3b8" }}>
             <div style={{ fontSize: "2.5rem", marginBottom: "0.5rem" }}>📂</div>
-            <div style={{ fontWeight: 600, color: "#e2e8f0", marginBottom: "0.25rem" }}>
+            <div
+              style={{
+                fontWeight: 600,
+                color: "#e2e8f0",
+                marginBottom: "0.25rem",
+              }}
+            >
               Drop workflow JSON here
             </div>
-            <div style={{ fontSize: "0.875rem" }}>or click to choose a file</div>
+            <div style={{ fontSize: "0.875rem" }}>
+              or click to choose a file
+            </div>
           </div>
         )}
       </div>

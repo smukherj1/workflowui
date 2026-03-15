@@ -20,15 +20,14 @@ export class ApiError extends Error {
 export async function uploadWorkflow(
   file: File,
 ): Promise<{ workflowId: string; viewUrl: string }> {
+  console.log(`Uploading file ${file.name} (${file.size} bytes).`);
   const text = await file.text();
   const res = await fetch(`${API_BASE}/workflows`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: text,
   });
-  console.log(
-    `Uploading file ${file.name} (${file.size} bytes). Response status: ${res.status}`,
-  );
+  console.log(`Upload file ${file.name} completed with status ${res.status}.`);
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: "Upload failed" }));
     const details = Array.isArray(body.details)
