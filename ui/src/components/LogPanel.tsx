@@ -74,16 +74,12 @@ export default function LogPanel({ workflowId }: Props) {
       data-testid="log-panel"
       className="log-panel"
       style={{
-        position: "fixed",
-        bottom: 0,
-        left: 0,
-        right: 0,
         background: "#0f172a",
         borderTop: "2px solid #334155",
-        zIndex: 1000,
         display: "flex",
         flexDirection: "column",
         height: logPanelOpen ? panelHeight : 40,
+        flexShrink: 0,
         transition: logPanelOpen ? "none" : "height 0.2s",
       }}
     >

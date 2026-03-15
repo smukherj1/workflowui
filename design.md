@@ -164,7 +164,6 @@ For dev, the Vite dev server proxies `/api` requests to the Express server.
 
 ### UI
 
-- In the grid view, the logs panel seems to hide the last row of steps.
 - No way in UI to view merged logs for a step that has sub-steps.
 
 ## Future Work
