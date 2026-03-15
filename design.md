@@ -164,8 +164,6 @@ For dev, the Vite dev server proxies `/api` requests to the Express server.
 
 ### UI
 
-- Steps view doesn't paginate over steps when the api server returns a page with a cursor
-  to fetch the next set of entries.
 - In the grid view, the logs panel seems to hide the last row of steps.
 - No way in UI to view merged logs for a step that has sub-steps.
 
