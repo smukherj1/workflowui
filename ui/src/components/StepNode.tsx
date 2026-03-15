@@ -54,7 +54,7 @@ export default function StepNode({ data }: Props) {
         boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
       }}
     >
-      <Handle type="target" position={Position.Left} style={{ background: "#475569" }} />
+      <Handle type="target" position={Position.Top} style={{ background: "#475569" }} />
       <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
         <StatusBadge status={data.status} size={10} />
         <span
@@ -96,7 +96,7 @@ export default function StepNode({ data }: Props) {
           </span>
         )}
       </div>
-      <Handle type="source" position={Position.Right} style={{ background: "#475569" }} />
+      <Handle type="source" position={Position.Bottom} style={{ background: "#475569" }} />
     </div>
   );
 }

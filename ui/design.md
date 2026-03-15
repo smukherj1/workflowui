@@ -13,7 +13,7 @@ The frontend is a single-page application that lets users upload workflow JSON f
 | Vite + React 18 (TypeScript) | SPA build & runtime                                          |
 | React Router v7              | Client-side routing with nested layout routes                |
 | React Flow v11               | DAG canvas with pan/zoom, custom nodes, and edge styling     |
-| dagre                        | Automatic DAG layout (topological left-to-right)             |
+| dagre                        | Automatic DAG layout (topological top-to-bottom)             |
 | Zustand                      | Lightweight global UI state                                  |
 | TanStack Query v5            | Data fetching, caching, cursor-based infinite pagination     |
 
@@ -164,7 +164,7 @@ Handles loading, error (with retry button), and empty states inline.
 
 ### `GraphView` — `src/components/GraphView.tsx`
 
-Computes a left-to-right dagre layout from the steps and dependencies, then renders a React Flow canvas. Each step becomes a `StepNode` (custom node type). Each dependency becomes a React Flow edge styled gray by default, or red if the target step has status `"failed"`. The canvas calls `fitView` on initial render.
+Computes a top-to-bottom dagre layout from the steps and dependencies, then renders a React Flow canvas. Each step becomes a `StepNode` (custom node type). Each dependency becomes a React Flow edge styled gray by default, or red if the target step has status `"failed"`. The canvas calls `fitView` on initial render.
 
 The `hierarchyPath` for each step is constructed locally — `/<stepId>` for top-level steps, or `<parentPath>/<stepId>` for nested steps — using the `parentPath` prop passed down from `WorkflowView` or `StepView`. This avoids an extra API call to look up the path before opening the log panel.
 

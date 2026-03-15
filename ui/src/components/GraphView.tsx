@@ -3,6 +3,7 @@ import ReactFlow, {
   Background,
   Controls,
   MiniMap,
+  MarkerType,
   type Node,
   type Edge,
   Position,
@@ -20,7 +21,7 @@ const NODE_HEIGHT = 70;
 function buildDagreLayout(steps: Step[], dependencies: Dependency[], parentPath: string) {
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir: "LR", nodesep: 60, ranksep: 100 });
+  g.setGraph({ rankdir: "TB", nodesep: 60, ranksep: 100 });
 
   for (const step of steps) {
     g.setNode(step.uuid, { width: NODE_WIDTH, height: NODE_HEIGHT });
@@ -42,8 +43,8 @@ function buildDagreLayout(steps: Step[], dependencies: Dependency[], parentPath:
         y: pos.y - NODE_HEIGHT / 2,
       },
       data: { ...step, hierarchyPath },
-      sourcePosition: Position.Right,
-      targetPosition: Position.Left,
+      sourcePosition: Position.Bottom,
+      targetPosition: Position.Top,
     };
   });
 
@@ -55,6 +56,7 @@ function buildDagreLayout(steps: Step[], dependencies: Dependency[], parentPath:
       source: dep.from,
       target: dep.to,
       style: { stroke: isFailed ? "#ef4444" : "#475569", strokeWidth: 2 },
+      markerEnd: { type: MarkerType.ArrowClosed, color: isFailed ? "#ef4444" : "#475569" },
       animated: target?.status === "running",
     };
   });
