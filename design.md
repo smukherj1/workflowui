@@ -160,10 +160,15 @@ For dev, the Vite dev server proxies `/api` requests to the Express server.
 - Run backend E2E test scripts using `bun run test:e2e-backend`
 - Run frontend E2E test scripts using `bun run test:e2e-frontend`
 
+## Known Issues
+
+### UI
+
+- No way in UI to view merged logs for a step that has sub-steps.
+- 5000 sub-steps in a steps don't fall back to a grid view.
+
 ## Future Work
 
-- Verify grid view works as expected for workflow with thousands of steps at a hierarchy level.
-  - Verify for thousands of steps at both the workflow leel and a level below that.
 - Add navigation bar in workflow / step view to navigate to workflow upload, search page, etc.
 - Update landing page to also allow searching for uploaded workflows and going to workflow by ID.
 - Add Github workflows to build docker images for the ui and server.
