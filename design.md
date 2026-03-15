@@ -171,8 +171,10 @@ For dev, the Vite dev server proxies `/api` requests to the Express server.
 
 ## Future Work
 
+- Verify workflows are retained for up to 7 days.
 - Add navigation bar in workflow / step view to navigate to workflow upload, search page, etc.
 - Update landing page to also allow searching for uploaded workflows and going to workflow by ID.
 - Add Github workflows to build docker images for the ui and server.
+- Add a delete workflow API that tests can use to delete the uploaded workflow after they complete.
 - Use drizzle in ui/server for type safe postgres queries.
 - Replace express JS with Hono for backend API Server for typesafe requests & responses.
