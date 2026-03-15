@@ -310,7 +310,7 @@ export async function getStepsAtLevel(
 
   const stepUuids = steps.map((s: { id: string }) => s.id);
   const depsResult = await pool.query(
-    `SELECT step_uuid AS "from", depends_on_uuid AS "to"
+    `SELECT step_uuid AS "to", depends_on_uuid AS "from"
      FROM step_dependencies
      WHERE step_uuid = ANY($1)`,
     [stepUuids],
