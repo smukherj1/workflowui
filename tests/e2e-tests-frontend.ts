@@ -760,6 +760,125 @@ async function testLargeWorkflowGridShowsAllSteps(
   return ok;
 }
 
+async function testWorkflowLevelMergedLogs(page: Page): Promise<boolean> {
+  console.log("\n[18] Workflow View: Log Panel Shows Merged Logs for All Steps");
+
+  const result = await uploadFixture("simple-linear.json");
+  if (!result) return assert(false, "Upload simple-linear.json via API");
+
+  const viewPath = result.viewUrl.startsWith("http")
+    ? new URL(result.viewUrl).pathname
+    : result.viewUrl;
+  await page.goto(`${UI_BASE}${viewPath}`);
+  await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+  // Wait for steps to render
+  try {
+    await page.getByText("Checkout").first().waitFor({ timeout: 10_000 });
+  } catch {
+    return assert(false, "Steps rendered before testing log panel");
+  }
+
+  // Open the log panel using the toggle button (without clicking a specific step)
+  const logToggle = page.locator('[data-testid="log-panel"] button').first();
+  try {
+    await logToggle.waitFor({ timeout: 5_000 });
+    await logToggle.click();
+  } catch {
+    return assert(false, "Log panel toggle button found");
+  }
+
+  let ok = true;
+
+  // simple-linear.json has 3 leaf steps with logs:
+  //   Checkout: "Cloning into repo..."
+  //   Build:    "Installing dependencies..."
+  //   Test:     "Running 42 tests..."
+  // The merged log view should show logs from all steps.
+  const logPanel = page.locator('[data-testid="log-panel"]');
+  for (const expectedLine of [
+    "Cloning into repo...",
+    "Installing dependencies...",
+    "Running 42 tests...",
+  ]) {
+    try {
+      await logPanel.getByText(expectedLine).first().waitFor({ timeout: 10_000 });
+      ok = assert(true, `Merged log contains "${expectedLine}"`) && ok;
+    } catch {
+      ok = assert(false, `Merged log contains "${expectedLine}"`) && ok;
+    }
+  }
+
+  return ok;
+}
+
+async function testNonLeafStepMergedLogs(page: Page): Promise<boolean> {
+  console.log(
+    "\n[19] Step View (Non-Leaf): Log Panel Shows Merged Logs for Step Subtree",
+  );
+
+  const result = await uploadFixture("nested-hierarchy.json");
+  if (!result) return assert(false, "Upload nested-hierarchy.json via API");
+
+  const viewPath = result.viewUrl.startsWith("http")
+    ? new URL(result.viewUrl).pathname
+    : result.viewUrl;
+  await page.goto(`${UI_BASE}${viewPath}`);
+  await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+  // Navigate into the CI step (non-leaf)
+  try {
+    await page.getByText("CI").first().waitFor({ timeout: 10_000 });
+    await page.getByText("CI").first().click();
+    await page.waitForURL(/\/steps\//, { timeout: 10_000 });
+  } catch {
+    return assert(false, "Navigate into CI sub-step view");
+  }
+
+  // Wait for CI's children to render
+  try {
+    await page.getByText("Build Frontend").first().waitFor({ timeout: 10_000 });
+  } catch {
+    return assert(false, "CI sub-steps rendered before testing log panel");
+  }
+
+  // Open the log panel
+  const logToggle = page.locator('[data-testid="log-panel"] button').first();
+  try {
+    await logToggle.waitFor({ timeout: 5_000 });
+    await logToggle.click();
+  } catch {
+    return assert(false, "Log panel toggle button found");
+  }
+
+  let ok = true;
+
+  // nested-hierarchy.json CI step has leaf descendants:
+  //   Build Frontend: "Building React app..."
+  //   Build Backend:  "Compiling TypeScript..."
+  //   API Tests:      "Testing /api/workflows..."
+  //   E2E Tests:      "Running Playwright tests..."
+  // The merged log view should show logs scoped to the CI sub-tree.
+  const logPanel = page.locator('[data-testid="log-panel"]');
+  for (const expectedLine of [
+    "Building React app...",
+    "Compiling TypeScript...",
+  ]) {
+    try {
+      await logPanel.getByText(expectedLine).first().waitFor({ timeout: 10_000 });
+      ok = assert(true, `CI sub-tree merged log contains "${expectedLine}"`) && ok;
+    } catch {
+      ok =
+        assert(
+          false,
+          `CI sub-tree merged log contains "${expectedLine}"`,
+        ) && ok;
+    }
+  }
+
+  return ok;
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -812,6 +931,8 @@ async function main() {
     testUploadError_invalidWorkflowJSON,
     testElapsedTimeDisplayed,
     testLargeWorkflowGridShowsAllSteps,
+    testWorkflowLevelMergedLogs,
+    testNonLeafStepMergedLogs,
   ];
 
   for (const testFn of tests) {

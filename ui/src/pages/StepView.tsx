@@ -12,6 +12,7 @@ export default function StepView() {
     uuid: string;
   }>();
   const setStepBreadcrumbs = useWorkflowStore((s) => s.setStepBreadcrumbs);
+  const setLogStepPath = useWorkflowStore((s) => s.setLogStepPath);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["stepDetail", workflowId, uuid],
@@ -23,8 +24,11 @@ export default function StepView() {
   useEffect(() => {
     if (data) {
       setStepBreadcrumbs(data.breadcrumbs);
+      if (!data.step.isLeaf) {
+        setLogStepPath(data.step.hierarchyPath);
+      }
     }
-  }, [data, setStepBreadcrumbs]);
+  }, [data, setStepBreadcrumbs, setLogStepPath]);
 
   if (isLoading) {
     return (

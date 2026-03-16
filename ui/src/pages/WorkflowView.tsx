@@ -6,10 +6,12 @@ import { useWorkflowStore } from "../store/workflowStore";
 export default function WorkflowView() {
   const { workflowId } = useParams<{ workflowId: string }>();
   const setStepBreadcrumbs = useWorkflowStore((s) => s.setStepBreadcrumbs);
+  const setLogStepPath = useWorkflowStore((s) => s.setLogStepPath);
 
   useEffect(() => {
     setStepBreadcrumbs([]);
-  }, [setStepBreadcrumbs]);
+    setLogStepPath("/");
+  }, [setStepBreadcrumbs, setLogStepPath]);
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>

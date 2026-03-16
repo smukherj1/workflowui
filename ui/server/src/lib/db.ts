@@ -377,6 +377,8 @@ export async function queryLogs(
     if (!isNaN(decoded)) offset = decoded;
   }
 
+  // Remove the trailing "/" if present.
+  const pathPrefix = stepPath.endsWith("/") ? stepPath.slice(0, -1) : stepPath;
   const result = await pool.query(
     `SELECT s.step_id, s.hierarchy_path, s.depth, sl.log_text
      FROM steps s
@@ -385,7 +387,7 @@ export async function queryLogs(
        AND s.is_leaf = true
        AND (s.hierarchy_path = $2 OR s.hierarchy_path LIKE $3)
      ORDER BY s.sort_order`,
-    [workflowId, stepPath, stepPath + "/%"],
+    [workflowId, stepPath, pathPrefix + "/%"],
   );
 
   const allLines: LogLine[] = [];
