@@ -16,19 +16,17 @@ COPY src/ ./src/
 RUN bun run build
 
 # Final runner stage
-FROM oven/bun:1-alpine
+FROM alpine:3.23.3
 WORKDIR /app
 
-# Copy dependency files
-COPY package.json bun.lock ./
+# Install libstdc++ needed by the server binary produced by bun.
+RUN apk add --no-cache libstdc++
 
-# Install only production dependencies
-RUN bun install --frozen-lockfile --production
-
-# Copy built assets from builder
-COPY --from=builder /app/dist ./dist
+# Copy server binary from builder.
+COPY --from=builder /app/dist/server ./server
 
 EXPOSE 3001
 
-# Run the app using Bun's runtime
-CMD ["bun", "dist/index.js"]
+# Run the standalone server binary produced
+# by bun.
+CMD ["./server"]
