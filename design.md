@@ -6,6 +6,12 @@ The workflowui project needs a technical design to implement the PRD at `/PRD.md
 
 ---
 
+## Runtime
+
+The project uses **Bun** as the JavaScript/TypeScript runtime for both the API server and frontend build tooling. Bun provides fast startup, built-in TypeScript support, and a compatible Node.js API surface.
+
+---
+
 ## Log Storage: PostgreSQL
 
 Logs are stored directly in PostgreSQL alongside workflow metadata. This simplifies the architecture (no additional services) and avoids issues with dedicated log systems like Loki that reject logs with old timestamps — a problem for this product since users upload historical workflow traces that may have executed hours or days ago.
@@ -28,12 +34,29 @@ Access patterns are simple key-based lookups (logs for workflow X, step Y). Logs
 [Browser] --> [Vite React SPA :5173]
                   |
                   v
-              [Express API :3001] --> [PostgreSQL :5432]  (workflow metadata, DAG, logs)
+              [Hono API :3001] --> [PostgreSQL :5432]  (workflow metadata, DAG, logs)
 ```
 
 - **Vite + React**: SPA frontend for workflow visualization
-- **Express (TypeScript)**: REST API server handling uploads, validation, queries
+- **Hono (TypeScript, Bun)**: REST API server with Zod-based request/response validation providing end-to-end type safety
+- **Drizzle ORM**: Type-safe PostgreSQL queries and schema management
 - **PostgreSQL**: Stores workflow metadata, step hierarchy, DAG relationships, and logs
+
+---
+
+## Standardized Metadata
+
+Both workflows and steps share a common metadata structure. This provides a consistent way to describe what a workflow or step represents and when it ran:
+
+| Field       | Required | Description                                                                                   |
+| ----------- | -------- | --------------------------------------------------------------------------------------------- |
+| `name`      | Yes      | Short human-readable description                                                              |
+| `uri`       | No       | Unique identifier for the resource (e.g., `github://org/repo`, `gcs://bucket/path/to/object`) |
+| `pin`       | No       | Version identifier for the resource (e.g., Git commit SHA, image digest)                      |
+| `startTime` | No       | RFC 3339 UTC timestamp when execution started                                                 |
+| `endTime`   | No       | RFC 3339 UTC timestamp when execution ended                                                   |
+
+The UI displays only the metadata fields that are present — omitted fields are not shown.
 
 ---
 
@@ -42,19 +65,24 @@ Access patterns are simple key-based lookups (logs for workflow X, step Y). Logs
 ```json
 {
   "workflow": {
-    "name": "my-build-pipeline",
     "metadata": {
-      "repository": "org/repo",
-      "branch": "main",
-      "commit": "abc123"
+      "name": "my-build-pipeline",
+      "uri": "github://org/repo",
+      "pin": "abc123def",
+      "startTime": "2026-03-08T10:00:00Z",
+      "endTime": "2026-03-08T10:05:00Z"
     },
     "steps": [
       {
         "id": "step-1",
-        "name": "Start of the build",
+        "metadata": {
+          "name": "Start of the build",
+          "uri": "gcs://artifacts/build-output",
+          "pin": "sha256:abc123",
+          "startTime": "2026-03-08T10:00:00Z",
+          "endTime": "2026-03-08T10:00:05Z"
+        },
         "status": "passed",
-        "startTime": "2026-03-08T10:00:00Z",
-        "endTime": "2026-03-08T10:00:05Z",
         "dependsOn": [],
         "logs": "Initializing...\n",
         "steps": []
@@ -64,6 +92,7 @@ Access patterns are simple key-based lookups (logs for workflow X, step Y). Logs
 }
 ```
 
+- `metadata`: standardized metadata object (see above); `name` is required, all other fields optional
 - `status`: `"passed"` | `"failed"` | `"running"` | `"skipped"` | `"cancelled"`
 - `dependsOn`: references sibling step IDs only (same hierarchy level)
 - `logs`: string for leaf steps (no sub-steps), `null` for parent steps
@@ -76,8 +105,9 @@ Access patterns are simple key-based lookups (logs for workflow X, step Y). Logs
 See [`ui/server/design.md`](ui/server/design.md) for the full details on:
 
 - PostgreSQL schema (tables, indexes, retention strategy)
+- Drizzle ORM schema and migration strategy
 - Log storage and query strategy
-- API routes, request/response shapes
+- API routes (Hono + Zod), request/response shapes
 - Upload and validation pipeline
 
 ---
@@ -86,12 +116,12 @@ See [`ui/server/design.md`](ui/server/design.md) for the full details on:
 
 See [`ui/design.md`](ui/design.md) for the full details on:
 
-- Component tree and specifications (GraphView, StepNode, LogPanel, Breadcrumbs, etc.)
+- Component tree and specifications (GraphView, StepNode, InfoCard, LogsPage, Breadcrumbs, etc.)
 - State management (Zustand store shape)
 - Data fetching strategy (TanStack Query keys, caching)
 - API client contract and TypeScript types
-- Interaction flows (upload, DAG navigation, log panel, breadcrumbs)
-- Large step count strategy (> 10K steps grid fallback)
+- Interaction flows (upload, landing page search, DAG navigation, dedicated log viewer, breadcrumbs)
+- Large step count strategy (> 10K steps grid fallback with page-based pagination)
 - Error and loading states
 - Frontend E2E test plan
 
@@ -106,7 +136,7 @@ See [`ui/design.md`](ui/design.md) for the full details on:
   design.md
 
   /storage/                            # Infrastructure configs
-    init.sql                           # PostgreSQL schema
+    init.sql                           # PostgreSQL schema (reference; Drizzle manages migrations)
 
   /ui/                                 # Vite + React SPA (see ui/design.md)
     design.md                          # Frontend technical design
@@ -117,20 +147,21 @@ See [`ui/design.md`](ui/design.md) for the full details on:
     Dockerfile
     /src/                              # See ui/design.md for full source layout
 
-  /ui/server/                          # Express API server (see ui/server/design.md)
+  /ui/server/                          # Hono API server (see ui/server/design.md)
     design.md                          # API server technical design
     package.json
     tsconfig.json
     Dockerfile
     /src/
-      index.ts                         # Express app entry
+      index.ts                         # Hono app entry
       /routes/
         workflows.ts                   # Upload + workflow detail routes
         steps.ts                       # Step listing + detail routes
         logs.ts                        # Log query routes
       /lib/
-        db.ts                          # PostgreSQL client, all queries
-        validation.ts                  # JSON schema + DAG validation
+        db.ts                          # Drizzle client, all queries
+        schema.ts                      # Drizzle schema definitions
+        validation.ts                  # Zod schemas + DAG validation
         types.ts                       # Shared TypeScript types
 
   /tests/
@@ -148,10 +179,10 @@ See [`ui/design.md`](ui/design.md) for the full details on:
 | Service  | Image                       | Port | Purpose                    |
 | -------- | --------------------------- | ---- | -------------------------- |
 | ui       | Custom (Vite build + nginx) | 8080 | Serves React SPA           |
-| api      | Custom (Express)            | 3001 | REST API server            |
+| api      | Custom (Hono + Bun)         | 3001 | REST API server            |
 | postgres | postgres:17-alpine          | 5432 | Workflow metadata and logs |
 
-For dev, the Vite dev server proxies `/api` requests to the Express server.
+For dev, the Vite dev server proxies `/api` requests to the Hono server.
 
 ---
 
@@ -160,18 +191,8 @@ For dev, the Vite dev server proxies `/api` requests to the Express server.
 - Run backend E2E test scripts using `bun run test:e2e-backend`
 - Run frontend E2E test scripts using `bun run test:e2e-frontend`
 
-## Known Issues
-
-### UI
-
-- No way in UI to view merged logs for a step that has sub-steps.
-
 ## Future Work
 
 - Verify workflows are retained for up to 7 days.
-- Add navigation bar in workflow / step view to navigate to workflow upload, search page, etc.
-- Update landing page to also allow searching for uploaded workflows and going to workflow by ID.
 - Add Github workflows to build docker images for the ui and server.
 - Add a delete workflow API that tests can use to delete the uploaded workflow after they complete.
-- Use drizzle in ui/server for type safe postgres queries.
-- Replace express JS with Hono for backend API Server for typesafe requests & responses.
