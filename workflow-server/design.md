@@ -1,4 +1,4 @@
-# Technical Design: Hono API Server (`ui/server`)
+# Technical Design: Hono API Server (`workflow-server`)
 
 ## Overview
 
@@ -276,7 +276,7 @@ Cursor for steps is `base64url(sort_order)`. Cursor for logs is `base64url(line_
 ## Source Layout
 
 ```
-ui/server/
+workflow-server/
   src/
     index.ts              # Hono app entry, port config, route mounting
     routes/

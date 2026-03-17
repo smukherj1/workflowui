@@ -7,3 +7,6 @@ ui/tsconfig.tsbuildinfo
 
 ui/server/node_modules
 ui/server/dist
+
+workflow-server/node_modules
+workflow-server/dist

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The frontend is a single-page application that lets users upload workflow JSON files, navigate to previously uploaded workflows by ID, and visualize the resulting step hierarchy as an interactive DAG. It communicates exclusively with the Hono API server (`ui/server`) described in [`ui/server/design.md`](server/design.md). The root [`design.md`](../design.md) covers system architecture, upload schema, and technology choices.
+The frontend is a single-page application that lets users upload workflow JSON files, navigate to previously uploaded workflows by ID, and visualize the resulting step hierarchy as an interactive DAG. It communicates exclusively with the Hono API server (`workflow-server`) described in [`workflow-server/design.md`](../workflow-server/design.md). The root [`design.md`](../design.md) covers system architecture, upload schema, and technology choices.
 
 ---
 

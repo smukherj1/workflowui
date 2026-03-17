@@ -102,7 +102,7 @@ The UI displays only the metadata fields that are present — omitted fields are
 
 ## Database Schema, API Design & Upload Pipeline
 
-See [`ui/server/design.md`](ui/server/design.md) for the full details on:
+See [`workflow-server/design.md`](workflow-server/design.md) for the full details on:
 
 - PostgreSQL schema (tables, indexes, retention strategy)
 - Drizzle ORM schema and migration strategy
@@ -147,7 +147,7 @@ See [`ui/design.md`](ui/design.md) for the full details on:
     Dockerfile
     /src/                              # See ui/design.md for full source layout
 
-  /ui/server/                          # Hono API server (see ui/server/design.md)
+  /workflow-server/                      # Hono API server (see workflow-server/design.md)
     design.md                          # API server technical design
     package.json
     tsconfig.json

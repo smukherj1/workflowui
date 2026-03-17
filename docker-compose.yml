@@ -27,8 +27,8 @@ services:
       postgres:
         condition: service_healthy
     restart: unless-stopped
-  api:
-    build: ./ui/server
+  workflow-server:
+    build: ./workflow-server
     ports:
       - "3001:3001"
     environment:
@@ -49,7 +49,7 @@ services:
     environment:
       API_URL: "http://localhost:3001"
     depends_on:
-      - api
+      - workflow-server
     restart: unless-stopped
 
 volumes:
