@@ -1,72 +1,80 @@
 {
   "workflow": {
-    "name": "nested-hierarchy-pipeline",
     "metadata": {
-      "repository": "org/monorepo",
-      "branch": "main",
-      "commit": "ghi789"
+      "name": "nested-hierarchy-pipeline",
+      "uri": "github://org/monorepo",
+      "pin": "ghi789",
+      "startTime": "2026-03-08T10:00:00Z",
+      "endTime": "2026-03-08T10:05:30Z"
     },
     "steps": [
       {
         "id": "ci",
-        "name": "CI",
+        "metadata": {
+          "name": "CI",
+          "startTime": "2026-03-08T10:00:00Z",
+          "endTime": "2026-03-08T10:05:00Z"
+        },
         "status": "passed",
-        "startTime": "2026-03-08T10:00:00Z",
-        "endTime": "2026-03-08T10:05:00Z",
         "dependsOn": [],
         "logs": null,
         "steps": [
           {
             "id": "build-frontend",
-            "name": "Build Frontend",
+            "metadata": {
+              "name": "Build Frontend",
+              "startTime": "2026-03-08T10:00:00Z",
+              "endTime": "2026-03-08T10:01:00Z"
+            },
             "status": "passed",
-            "startTime": "2026-03-08T10:00:00Z",
-            "endTime": "2026-03-08T10:01:00Z",
             "dependsOn": [],
             "logs": "Building React app...\nvite build completed.\n",
             "steps": []
           },
           {
             "id": "build-backend",
-            "name": "Build Backend",
+            "metadata": {
+              "name": "Build Backend",
+              "startTime": "2026-03-08T10:00:00Z",
+              "endTime": "2026-03-08T10:01:30Z"
+            },
             "status": "passed",
-            "startTime": "2026-03-08T10:00:00Z",
-            "endTime": "2026-03-08T10:01:30Z",
             "dependsOn": [],
             "logs": "Compiling TypeScript...\nBuild complete.\n",
             "steps": []
           },
           {
             "id": "integration-tests",
-            "name": "Integration Tests",
+            "metadata": {
+              "name": "Integration Tests",
+              "startTime": "2026-03-08T10:01:30Z",
+              "endTime": "2026-03-08T10:03:00Z"
+            },
             "status": "passed",
-            "startTime": "2026-03-08T10:01:30Z",
-            "endTime": "2026-03-08T10:03:00Z",
-            "dependsOn": [
-              "build-frontend",
-              "build-backend"
-            ],
+            "dependsOn": ["build-frontend", "build-backend"],
             "logs": null,
             "steps": [
               {
                 "id": "api-tests",
-                "name": "API Tests",
+                "metadata": {
+                  "name": "API Tests",
+                  "startTime": "2026-03-08T10:01:30Z",
+                  "endTime": "2026-03-08T10:02:00Z"
+                },
                 "status": "passed",
-                "startTime": "2026-03-08T10:01:30Z",
-                "endTime": "2026-03-08T10:02:00Z",
                 "dependsOn": [],
                 "logs": "Testing /api/workflows...\nAll API tests passed.\n",
                 "steps": []
               },
               {
                 "id": "e2e-tests",
-                "name": "E2E Tests",
+                "metadata": {
+                  "name": "E2E Tests",
+                  "startTime": "2026-03-08T10:02:00Z",
+                  "endTime": "2026-03-08T10:03:00Z"
+                },
                 "status": "passed",
-                "startTime": "2026-03-08T10:02:00Z",
-                "endTime": "2026-03-08T10:03:00Z",
-                "dependsOn": [
-                  "api-tests"
-                ],
+                "dependsOn": ["api-tests"],
                 "logs": "Running Playwright tests...\n10/10 tests passed.\n",
                 "steps": []
               }
@@ -76,13 +84,13 @@
       },
       {
         "id": "deploy",
-        "name": "Deploy",
+        "metadata": {
+          "name": "Deploy",
+          "startTime": "2026-03-08T10:05:00Z",
+          "endTime": "2026-03-08T10:05:30Z"
+        },
         "status": "passed",
-        "startTime": "2026-03-08T10:05:00Z",
-        "endTime": "2026-03-08T10:05:30Z",
-        "dependsOn": [
-          "ci"
-        ],
+        "dependsOn": ["ci"],
         "logs": "Deploying to production...\nDeploy complete.\n",
         "steps": []
       }

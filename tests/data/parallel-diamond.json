@@ -1,69 +1,70 @@
 {
   "workflow": {
-    "name": "parallel-diamond-pipeline",
     "metadata": {
-      "repository": "org/repo",
-      "branch": "feature/x",
-      "commit": "def456"
+      "name": "parallel-diamond-pipeline",
+      "uri": "github://org/repo",
+      "pin": "def456",
+      "startTime": "2026-03-08T10:00:00Z",
+      "endTime": "2026-03-08T10:00:45Z"
     },
     "steps": [
       {
         "id": "setup",
-        "name": "Setup",
+        "metadata": {
+          "name": "Setup",
+          "startTime": "2026-03-08T10:00:00Z",
+          "endTime": "2026-03-08T10:00:05Z"
+        },
         "status": "passed",
-        "startTime": "2026-03-08T10:00:00Z",
-        "endTime": "2026-03-08T10:00:05Z",
         "dependsOn": [],
         "logs": "Environment setup complete.\n",
         "steps": []
       },
       {
         "id": "unit-tests",
-        "name": "Unit Tests",
+        "metadata": {
+          "name": "Unit Tests",
+          "startTime": "2026-03-08T10:00:05Z",
+          "endTime": "2026-03-08T10:00:30Z"
+        },
         "status": "passed",
-        "startTime": "2026-03-08T10:00:05Z",
-        "endTime": "2026-03-08T10:00:30Z",
-        "dependsOn": [
-          "setup"
-        ],
+        "dependsOn": ["setup"],
         "logs": "Running unit tests...\nPassed: 100, Failed: 0\n",
         "steps": []
       },
       {
         "id": "lint",
-        "name": "Lint",
+        "metadata": {
+          "name": "Lint",
+          "startTime": "2026-03-08T10:00:05Z",
+          "endTime": "2026-03-08T10:00:15Z"
+        },
         "status": "passed",
-        "startTime": "2026-03-08T10:00:05Z",
-        "endTime": "2026-03-08T10:00:15Z",
-        "dependsOn": [
-          "setup"
-        ],
+        "dependsOn": ["setup"],
         "logs": "Running eslint...\nNo issues found.\n",
         "steps": []
       },
       {
         "id": "type-check",
-        "name": "Type Check",
+        "metadata": {
+          "name": "Type Check",
+          "startTime": "2026-03-08T10:00:05Z",
+          "endTime": "2026-03-08T10:00:20Z"
+        },
         "status": "passed",
-        "startTime": "2026-03-08T10:00:05Z",
-        "endTime": "2026-03-08T10:00:20Z",
-        "dependsOn": [
-          "setup"
-        ],
+        "dependsOn": ["setup"],
         "logs": "Running tsc --noEmit...\nType check passed.\n",
         "steps": []
       },
       {
         "id": "publish",
-        "name": "Publish",
+        "metadata": {
+          "name": "Publish",
+          "startTime": "2026-03-08T10:00:30Z",
+          "endTime": "2026-03-08T10:00:45Z"
+        },
         "status": "passed",
-        "startTime": "2026-03-08T10:00:30Z",
-        "endTime": "2026-03-08T10:00:45Z",
-        "dependsOn": [
-          "unit-tests",
-          "lint",
-          "type-check"
-        ],
+        "dependsOn": ["unit-tests", "lint", "type-check"],
         "logs": "Publishing package v1.2.3...\nPublish successful.\n",
         "steps": []
       }

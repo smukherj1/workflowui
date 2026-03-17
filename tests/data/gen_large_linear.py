@@ -10,10 +10,12 @@ def make_substeps(prefix, count):
     for i in range(count):
         steps.append({
             "id": f"{prefix}-{i}",
-            "name": f"{prefix.capitalize()} Step {i}",
+            "metadata": {
+                "name": f"{prefix.capitalize()} Step {i}",
+                "startTime": BASE_TIME,
+                "endTime": BASE_TIME,
+            },
             "status": "passed",
-            "startTime": BASE_TIME,
-            "endTime": BASE_TIME,
             "dependsOn": [f"{prefix}-{i-1}"] if i > 0 else [],
             "logs": f"Running {prefix} step {i}...\nDone.\n",
             "steps": []
@@ -22,39 +24,34 @@ def make_substeps(prefix, count):
 
 workflow = {
     "workflow": {
-        "name": "large-linear-pipeline",
         "metadata": {
-            "repository": "org/repo",
-            "branch": "main",
-            "commit": "abc123"
+            "name": "large-linear-pipeline",
+            "uri": "github://org/repo",
+            "pin": "abc123",
+            "startTime": BASE_TIME,
+            "endTime": BASE_TIME,
         },
         "steps": [
             {
                 "id": "checkout",
-                "name": "Checkout",
+                "metadata": {"name": "Checkout", "startTime": BASE_TIME, "endTime": BASE_TIME},
                 "status": "passed",
-                "startTime": BASE_TIME,
-                "endTime": BASE_TIME,
                 "dependsOn": [],
                 "logs": None,
                 "steps": make_substeps("checkout", 4000)
             },
             {
                 "id": "build",
-                "name": "Build",
+                "metadata": {"name": "Build", "startTime": BASE_TIME, "endTime": BASE_TIME},
                 "status": "passed",
-                "startTime": BASE_TIME,
-                "endTime": BASE_TIME,
                 "dependsOn": ["checkout"],
                 "logs": None,
                 "steps": make_substeps("build", 2000)
             },
             {
                 "id": "test",
-                "name": "Test",
+                "metadata": {"name": "Test", "startTime": BASE_TIME, "endTime": BASE_TIME},
                 "status": "passed",
-                "startTime": BASE_TIME,
-                "endTime": BASE_TIME,
                 "dependsOn": ["build"],
                 "logs": None,
                 "steps": make_substeps("test", 5000)

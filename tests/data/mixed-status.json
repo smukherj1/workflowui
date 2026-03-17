@@ -1,43 +1,46 @@
 {
   "workflow": {
-    "name": "mixed-status-pipeline",
     "metadata": {
-      "repository": "org/repo",
-      "branch": "bugfix/crash",
-      "commit": "jkl012"
+      "name": "mixed-status-pipeline",
+      "uri": "github://org/repo",
+      "pin": "jkl012",
+      "startTime": "2026-03-08T10:00:00Z",
+      "endTime": "2026-03-08T10:00:30Z"
     },
     "steps": [
       {
         "id": "setup",
-        "name": "Setup",
+        "metadata": {
+          "name": "Setup",
+          "startTime": "2026-03-08T10:00:00Z",
+          "endTime": "2026-03-08T10:00:05Z"
+        },
         "status": "passed",
-        "startTime": "2026-03-08T10:00:00Z",
-        "endTime": "2026-03-08T10:00:05Z",
         "dependsOn": [],
         "logs": "Setup complete.\n",
         "steps": []
       },
       {
         "id": "tests",
-        "name": "Tests",
+        "metadata": {
+          "name": "Tests",
+          "startTime": "2026-03-08T10:00:05Z",
+          "endTime": "2026-03-08T10:00:30Z"
+        },
         "status": "failed",
-        "startTime": "2026-03-08T10:00:05Z",
-        "endTime": "2026-03-08T10:00:30Z",
-        "dependsOn": [
-          "setup"
-        ],
+        "dependsOn": ["setup"],
         "logs": "Running tests...\nERROR: NullPointerException in test_foo\nFailed: 1, Passed: 41\n",
         "steps": []
       },
       {
         "id": "deploy",
-        "name": "Deploy",
+        "metadata": {
+          "name": "Deploy",
+          "startTime": "2026-03-08T10:00:30Z",
+          "endTime": "2026-03-08T10:00:30Z"
+        },
         "status": "skipped",
-        "startTime": "2026-03-08T10:00:30Z",
-        "endTime": "2026-03-08T10:00:30Z",
-        "dependsOn": [
-          "tests"
-        ],
+        "dependsOn": ["tests"],
         "logs": "Skipped due to test failure.\n",
         "steps": []
       }
