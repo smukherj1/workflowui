@@ -46,7 +46,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      API_URL: "http://localhost:3001"
+      API_URL: "http://workflow-server:3001"
     depends_on:
       - workflow-server
     restart: unless-stopped
