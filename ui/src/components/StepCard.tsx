@@ -2,7 +2,6 @@ import { useNavigate, useParams } from "react-router-dom";
 import type { Step } from "../lib/types";
 import StatusBadge from "./StatusBadge";
 import { formatElapsed } from "../lib/format";
-import { useWorkflowStore } from "../store/workflowStore";
 
 interface Props {
   step: Step;
@@ -12,7 +11,6 @@ interface Props {
 export default function StepCard({ step, parentPath }: Props) {
   const navigate = useNavigate();
   const { workflowId } = useParams<{ workflowId: string }>();
-  const { setLogStepPath, toggleLogPanel, logPanelOpen } = useWorkflowStore();
 
   const elapsed = formatElapsed(step.startTime, step.endTime);
   const hierarchyPath = parentPath ? `${parentPath}/${step.stepId}` : `/${step.stepId}`;
@@ -21,8 +19,7 @@ export default function StepCard({ step, parentPath }: Props) {
     if (!step.isLeaf) {
       navigate(`/workflows/${workflowId}/steps/${step.uuid}`);
     } else {
-      setLogStepPath(hierarchyPath);
-      if (!logPanelOpen) toggleLogPanel();
+      navigate(`/workflows/${workflowId}/logs?stepPath=${encodeURIComponent(hierarchyPath)}`);
     }
   }
 

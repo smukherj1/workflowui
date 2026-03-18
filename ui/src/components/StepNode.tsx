@@ -3,7 +3,6 @@ import { useNavigate, useParams } from "react-router-dom";
 import type { Step } from "../lib/types";
 import StatusBadge from "./StatusBadge";
 import { formatElapsed } from "../lib/format";
-import { useWorkflowStore } from "../store/workflowStore";
 
 interface StepNodeData extends Step {
   hierarchyPath: string;
@@ -16,7 +15,6 @@ interface Props {
 export default function StepNode({ data }: Props) {
   const navigate = useNavigate();
   const { workflowId } = useParams<{ workflowId: string }>();
-  const { setLogStepPath, toggleLogPanel, logPanelOpen } = useWorkflowStore();
 
   const elapsed = formatElapsed(data.startTime, data.endTime);
   const truncatedName =
@@ -26,8 +24,7 @@ export default function StepNode({ data }: Props) {
     if (!data.isLeaf) {
       navigate(`/workflows/${workflowId}/steps/${data.uuid}`);
     } else {
-      setLogStepPath(data.hierarchyPath);
-      if (!logPanelOpen) toggleLogPanel();
+      navigate(`/workflows/${workflowId}/logs?stepPath=${encodeURIComponent(data.hierarchyPath)}`);
     }
   }
 

@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { getWorkflow } from "../lib/api";
 import WorkflowHeader from "./WorkflowHeader";
 import StatusFilterBar from "./StatusFilterBar";
-import LogPanel from "./LogPanel";
 import { useWorkflowStore } from "../store/workflowStore";
 import type { WorkflowDetail } from "../lib/types";
 
@@ -126,10 +125,9 @@ export default function WorkflowLayout() {
         ))}
       </nav>
       <StatusFilterBar />
-      <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>
+      <div style={{ flex: 1, overflow: "auto", position: "relative" }}>
         <Outlet context={{ workflow } satisfies LayoutContext} />
       </div>
-      <LogPanel workflowId={workflowId!} />
     </div>
   );
 }

@@ -1,12 +1,14 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
+import { Link } from "react-router-dom";
 import { getSteps } from "../lib/api";
 import { useWorkflowStore } from "../store/workflowStore";
 import GraphView from "./GraphView";
 import GridFallback from "./GridFallback";
 import type { Step, Dependency } from "../lib/types";
 
-const GRID_THRESHOLD = 100;
+// Use GridFallback (CSS grid) for step counts where dagre/ReactFlow becomes slow
+const GRID_THRESHOLD = 500;
 
 interface Props {
   workflowId: string;
@@ -35,7 +37,7 @@ export default function GraphContainer({
     }
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  if (isLoading) {
+  if (isLoading || hasNextPage) {
     return (
       <div
         style={{
@@ -46,7 +48,7 @@ export default function GraphContainer({
           color: "#64748b",
         }}
       >
-        Loading steps...
+        {isLoading ? "Loading steps..." : "Loading more steps..."}
       </div>
     );
   }
@@ -107,26 +109,38 @@ export default function GraphContainer({
     );
   }
 
-  console.log(
-    `Rendering GraphContainer with ${filteredSteps.length} steps and ${allDeps.length} dependencies. View mode: ${viewMode}.`,
-  );
+  // Use "/" for root level; backend strips trailing slash to get LIKE "/%"
+  const logsStepPath = parentPath || "/";
+  const viewLogsUrl = `/workflows/${workflowId}/logs?stepPath=${encodeURIComponent(logsStepPath)}`;
+
   const useGrid = allSteps.length > GRID_THRESHOLD || viewMode === "grid";
 
-  if (useGrid) {
-    return <GridFallback steps={filteredSteps} parentPath={parentPath} />;
-  }
-
-  const visibleDeps = allDeps.filter(
-    (d) =>
-      filteredSteps.some((s) => s.uuid === d.from) &&
-      filteredSteps.some((s) => s.uuid === d.to),
-  );
+  const visibleDeps = useGrid
+    ? []
+    : allDeps.filter(
+        (d) =>
+          filteredSteps.some((s) => s.uuid === d.from) &&
+          filteredSteps.some((s) => s.uuid === d.to),
+      );
 
   return (
-    <GraphView
-      steps={filteredSteps}
-      dependencies={visibleDeps}
-      parentPath={parentPath}
-    />
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: "0.5rem" }}>
+      <div>
+        <Link to={viewLogsUrl} style={{ color: "#60a5fa", fontSize: "0.875rem", textDecoration: "none" }}>
+          View Logs
+        </Link>
+      </div>
+      <div style={{ flex: 1, minHeight: 0 }}>
+        {useGrid ? (
+          <GridFallback steps={filteredSteps} parentPath={parentPath} />
+        ) : (
+          <GraphView
+            steps={filteredSteps}
+            dependencies={visibleDeps}
+            parentPath={parentPath}
+          />
+        )}
+      </div>
+    </div>
   );
 }

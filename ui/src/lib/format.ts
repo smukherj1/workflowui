@@ -1,6 +1,6 @@
 export function formatElapsed(
-  startTime: string | null,
-  endTime: string | null,
+  startTime: string | null | undefined,
+  endTime: string | null | undefined,
 ): string {
   if (!startTime || !endTime) return "";
   const start = new Date(startTime).getTime();
@@ -28,4 +28,8 @@ export function formatRelative(dateString: string): string {
     return `${diffHours} hour${diffHours !== 1 ? "s" : ""} ago`;
   const diffDays = Math.floor(diffHours / 24);
   return `${diffDays} day${diffDays !== 1 ? "s" : ""} ago`;
+}
+
+export function formatLocalTime(dateString: string): string {
+  return new Date(dateString).toLocaleString();
 }

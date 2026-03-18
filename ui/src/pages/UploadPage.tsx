@@ -1,4 +1,5 @@
 import UploadForm from "../components/UploadForm";
+import NavigateForm from "../components/NavigateForm";
 
 export default function UploadPage() {
   return (
@@ -23,6 +24,7 @@ export default function UploadPage() {
         </p>
       </div>
       <UploadForm />
+      <NavigateForm />
     </div>
   );
 }

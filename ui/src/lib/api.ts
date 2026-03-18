@@ -2,6 +2,7 @@ import type {
   WorkflowDetail,
   StepsResponse,
   StepDetailResponse,
+  StepLookupResponse,
   LogsResponse,
 } from "./types";
 
@@ -80,6 +81,12 @@ export async function getStepDetail(
   uuid: string,
 ): Promise<StepDetailResponse> {
   const res = await fetch(`${API_BASE}/workflows/${workflowId}/steps/${uuid}`);
+  if (!res.ok) throw new ApiError("Step not found", res.status);
+  return res.json();
+}
+
+export async function lookupStep(uuid: string): Promise<StepLookupResponse> {
+  const res = await fetch(`${API_BASE}/steps/${uuid}`);
   if (!res.ok) throw new ApiError("Step not found", res.status);
   return res.json();
 }

@@ -4,7 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import { getStepDetail } from "../lib/api";
 import GraphContainer from "../components/GraphContainer";
 import LeafDetail from "../components/LeafDetail";
+import InfoCard from "../components/InfoCard";
 import { useWorkflowStore } from "../store/workflowStore";
+import type { Metadata } from "../lib/types";
 
 export default function StepView() {
   const { workflowId, uuid } = useParams<{
@@ -12,7 +14,6 @@ export default function StepView() {
     uuid: string;
   }>();
   const setStepBreadcrumbs = useWorkflowStore((s) => s.setStepBreadcrumbs);
-  const setLogStepPath = useWorkflowStore((s) => s.setLogStepPath);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["stepDetail", workflowId, uuid],
@@ -24,11 +25,8 @@ export default function StepView() {
   useEffect(() => {
     if (data) {
       setStepBreadcrumbs(data.breadcrumbs);
-      if (!data.step.isLeaf) {
-        setLogStepPath(data.step.hierarchyPath);
-      }
     }
-  }, [data, setStepBreadcrumbs, setLogStepPath]);
+  }, [data, setStepBreadcrumbs]);
 
   if (isLoading) {
     return (
@@ -71,21 +69,38 @@ export default function StepView() {
   }
 
   const { step } = data;
+  const metadata: Metadata = {
+    name: step.name,
+    uri: step.uri ?? undefined,
+    pin: step.pin ?? undefined,
+    startTime: step.startTime ?? undefined,
+    endTime: step.endTime ?? undefined,
+  };
+
+  const logsUrl = `/workflows/${workflowId}/logs?stepPath=${encodeURIComponent(step.hierarchyPath)}`;
 
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      {/* Content */}
-      <div style={{ flex: 1, overflow: "hidden" }}>
-        {step.isLeaf ? (
-          <LeafDetail step={step} />
-        ) : (
-          <GraphContainer
-            workflowId={workflowId!}
-            parentId={uuid}
-            parentPath={step.hierarchyPath}
-          />
-        )}
-      </div>
+    <div style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.5rem", height: "100%" }}>
+      <InfoCard metadata={metadata} />
+      {step.isLeaf ? (
+        <LeafDetail step={step} workflowId={workflowId!} />
+      ) : (
+        <>
+          <Link
+            to={logsUrl}
+            style={{ color: "#60a5fa", fontSize: "0.875rem", textDecoration: "none" }}
+          >
+            View Logs
+          </Link>
+          <div style={{ flex: 1, minHeight: 0 }}>
+            <GraphContainer
+              workflowId={workflowId!}
+              parentId={uuid}
+              parentPath={step.hierarchyPath}
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 }

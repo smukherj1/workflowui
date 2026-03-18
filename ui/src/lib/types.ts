@@ -1,9 +1,20 @@
 export type StepStatus = "passed" | "failed" | "running" | "skipped" | "cancelled";
 
+export interface Metadata {
+  name: string;
+  uri?: string;
+  pin?: string;
+  startTime?: string;
+  endTime?: string;
+}
+
 export interface WorkflowDetail {
   id: string;
   name: string;
-  metadata: Record<string, string>;
+  uri?: string;
+  pin?: string;
+  startTime?: string;
+  endTime?: string;
   status: StepStatus;
   totalSteps: number;
   uploadedAt: string;
@@ -14,6 +25,8 @@ export interface Step {
   uuid: string;
   stepId: string;
   name: string;
+  uri?: string;
+  pin?: string;
   status: StepStatus;
   startTime: string | null;
   endTime: string | null;
@@ -40,6 +53,10 @@ export interface StepDetail extends Step {
 export interface StepDetailResponse {
   step: StepDetail;
   breadcrumbs: Array<{ uuid: string; name: string }>;
+}
+
+export interface StepLookupResponse extends StepDetailResponse {
+  workflowId: string;
 }
 
 export interface LogLine {

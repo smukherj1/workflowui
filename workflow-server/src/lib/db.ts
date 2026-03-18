@@ -328,8 +328,10 @@ export async function getLogs(
   cursor: string | null,
   limit: number,
 ) {
-  const exactPath = stepPath;
-  const prefixPath = `${stepPath}/%`;
+  // Strip trailing slash so "/" → base="" which makes prefixPath = "/%"
+  const base = stepPath.replace(/\/$/, "");
+  const exactPath = base;
+  const prefixPath = base ? `${base}/%` : "/%";
 
   const leafSteps = await db
     .select({
