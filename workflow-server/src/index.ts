@@ -1,13 +1,21 @@
 import { Hono } from "hono";
-import { serve } from "bun";
+import workflowsRouter from "./routes/workflows.js";
+import stepsRouter, { stepsGlobalRouter } from "./routes/steps.js";
+import logsRouter from "./routes/logs.js";
 
 const app = new Hono();
 
-app.get("/", (c) => {
-  return c.text("Hello Hono!");
-});
+app.get("/health", (c) => c.json({ status: "ok" }));
 
-serve({
+app.route("/api/workflows", workflowsRouter);
+app.route("/api/workflows", stepsRouter);
+app.route("/api/workflows", logsRouter);
+app.route("/api/steps", stepsGlobalRouter);
+
+const port = Number(process.env.PORT ?? 3001);
+console.log(`workflow-server listening on :${port}`);
+
+export default {
+  port,
   fetch: app.fetch,
-  port: 3001,
-});
+};
