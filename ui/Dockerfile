@@ -3,6 +3,10 @@ WORKDIR /app
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 COPY . .
+
+# Verify no typescript errors.
+RUN bun run check-types
+
 RUN bun run build
 
 FROM nginx:alpine

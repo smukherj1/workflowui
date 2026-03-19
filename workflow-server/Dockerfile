@@ -12,6 +12,9 @@ RUN bun install --frozen-lockfile
 COPY tsconfig.json ./
 COPY src/ ./src/
 
+# Verify no typescript errors.
+RUN bun run check-types
+
 # Run the build script
 RUN bun run build
 

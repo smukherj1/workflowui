@@ -23,7 +23,7 @@ router.post("/", async (c) => {
 
   const parsed = workflowSchema.safeParse(body);
   if (!parsed.success) {
-    return c.json({ error: parsed.error.message, details: parsed.error.errors }, 400);
+    return c.json({ error: parsed.error.message, details: parsed.error.issues }, 400);
   }
 
   const structErr = validateStructureAndDAG(parsed.data as any);
