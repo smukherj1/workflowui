@@ -1,6 +1,6 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import { eq, and, isNull, sql, like, or } from "drizzle-orm";
+import { eq, and, isNull, sql, like, or, gte } from "drizzle-orm";
 import { workflows, steps, stepDependencies, stepLogs } from "./schema.js";
 import type { WorkflowInput, FlatStep } from "./types.js";
 import type { StepInput } from "./types.js";
@@ -191,27 +191,28 @@ export async function getStepsAtLevel(
   cursor: string | null,
   limit: number,
 ) {
-  // Get steps at this level
-  const condition = parentId
-    ? and(eq(steps.workflowId, workflowId), eq(steps.parentStepId, parentId))
-    : and(eq(steps.workflowId, workflowId), isNull(steps.parentStepId));
+  // Get steps at this level, applying cursor offset in the query itself
+  const cursorOffset = cursor
+    ? Number(Buffer.from(cursor, "base64url").toString())
+    : null;
+
+  const conditions = parentId
+    ? [eq(steps.workflowId, workflowId), eq(steps.parentStepId, parentId)]
+    : [eq(steps.workflowId, workflowId), isNull(steps.parentStepId)];
+
+  if (cursorOffset !== null) {
+    conditions.push(gte(steps.sortOrder, cursorOffset));
+  }
 
   const stepsResult = await db
     .select()
     .from(steps)
-    .where(condition)
+    .where(and(...conditions))
     .orderBy(steps.sortOrder)
     .limit(limit + 1);
 
-  // Apply cursor (sort_order offset)
-  let filtered = stepsResult;
-  if (cursor) {
-    const offset = Number(Buffer.from(cursor, "base64url").toString());
-    filtered = stepsResult.filter((s) => s.sortOrder >= offset);
-  }
-
-  const hasMore = filtered.length > limit;
-  const page = filtered.slice(0, limit);
+  const hasMore = stepsResult.length > limit;
+  const page = stepsResult.slice(0, limit);
 
   // Get child counts
   const stepIds = page.map((s) => s.id);
