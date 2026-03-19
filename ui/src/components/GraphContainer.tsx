@@ -8,7 +8,7 @@ import GridFallback from "./GridFallback";
 import type { Step, Dependency } from "../lib/types";
 
 // Use GridFallback (CSS grid) for step counts where dagre/ReactFlow becomes slow
-const GRID_THRESHOLD = 500;
+const GRID_THRESHOLD = 50;
 
 interface Props {
   workflowId: string;
@@ -23,7 +23,15 @@ export default function GraphContainer({
 }: Props) {
   const { statusFilter, viewMode } = useWorkflowStore();
 
-  const { data, isLoading, isFetchingNextPage, isError, refetch, hasNextPage, fetchNextPage } = useInfiniteQuery({
+  const {
+    data,
+    isLoading,
+    isFetchingNextPage,
+    isError,
+    refetch,
+    hasNextPage,
+    fetchNextPage,
+  } = useInfiniteQuery({
     queryKey: ["steps", workflowId, parentId ?? null],
     queryFn: ({ pageParam }) =>
       getSteps(workflowId, parentId, pageParam as string | undefined),
@@ -124,9 +132,23 @@ export default function GraphContainer({
       );
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: "0.5rem" }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        gap: "0.5rem",
+      }}
+    >
       <div>
-        <Link to={viewLogsUrl} style={{ color: "#60a5fa", fontSize: "0.875rem", textDecoration: "none" }}>
+        <Link
+          to={viewLogsUrl}
+          style={{
+            color: "#60a5fa",
+            fontSize: "0.875rem",
+            textDecoration: "none",
+          }}
+        >
           View Logs
         </Link>
       </div>

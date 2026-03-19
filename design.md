@@ -121,7 +121,7 @@ See [`ui/design.md`](ui/design.md) for the full details on:
 - Data fetching strategy (TanStack Query keys, caching)
 - API client contract and TypeScript types
 - Interaction flows (upload, landing page search, DAG navigation, dedicated log viewer, breadcrumbs)
-- Large step count strategy (> 10K steps grid fallback with page-based pagination)
+- Large step count strategy (> 50 steps grid fallback with page-based pagination)
 - Error and loading states
 - Frontend E2E test plan
 
