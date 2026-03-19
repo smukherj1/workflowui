@@ -201,11 +201,13 @@ Used in `StepNode`, `StepCard`, `LeafDetail`, `InfoCard`, and `WorkflowHeader`.
 
 ### `GraphContainer` — `src/components/GraphContainer.tsx`
 
-Fetches steps for the current hierarchy level using `useQuery(['steps', workflowId, parentId, cursor])`, loading one page at a time. Applies `statusFilter` from the Zustand store client-side.
+Fetches steps for the current hierarchy level using `useInfiniteQuery(['steps', workflowId, parentId])` with cursor-based pagination.
 
-Rendering decision:
-- If total step count > 10,000 **or** `viewMode === 'grid'`: renders `GridFallback`
-- Otherwise: renders `GraphView` with the filtered steps and their dependency edges (edges are filtered to only connect steps that passed the status filter)
+Rendering decision after the first page loads:
+- If total step count > `GRID_THRESHOLD` **or** `viewMode === 'grid'`: renders `GridFallback` in server-paginated mode (one server page at a time, on-demand fetching)
+- Otherwise: auto-fetches all remaining pages and renders `GraphView` with the filtered steps and their dependency edges (edges are filtered to only connect steps that passed the status filter)
+
+`GraphView` needs all nodes upfront for dagre layout, so auto-fetching continues until all pages arrive. `GridFallback` only needs the first page to start rendering, so additional pages are fetched on demand as the user navigates forward.
 
 Displays a **"View Logs"** link that navigates to `/workflows/:workflowId/logs?stepPath=<currentPath>` to view merged logs for all steps at the current level.
 
@@ -229,9 +231,9 @@ Click behavior (implemented in the node's `onClick`):
 
 ### `GridFallback` — `src/components/GridFallback.tsx`
 
-Used when a level has more than 10,000 steps or the user selects grid view. Renders a CSS grid of `StepCard` items with **page-based pagination**: displays one page of results at a time (default page size configurable, e.g. 100 items) with "Previous" / "Next" navigation buttons and a page indicator. Steps are sorted by status priority (failed → running → passed → skipped → cancelled) so failures surface first. A search input above the grid filters by step name (substring, case-insensitive). `StatusFilterBar` checkboxes apply as a secondary filter.
+Used when a level has more than `GRID_THRESHOLD` steps or the user selects grid view. Receives pages from `GraphContainer`'s `useInfiniteQuery`. Displays one server page (up to 1000 steps) at a time with Previous/Next navigation. The Next button fetches the next server page on demand when the user advances past the last loaded page. Search and status filters apply client-side to the displayed page. Steps within each page are sorted by status priority (failed → running → passed → skipped → cancelled) so failures surface first.
 
-Page-based rendering replaces the previous infinite scroll approach, which caused UI sluggishness when progressively loading large numbers of steps into a single page.
+The page indicator shows `Page X of Y+` where the `+` suffix appears when more pages exist on the server. Previously loaded pages are cached by `useInfiniteQuery` and render instantly when the user navigates back.
 
 ### `StepCard` — `src/components/StepCard.tsx`
 

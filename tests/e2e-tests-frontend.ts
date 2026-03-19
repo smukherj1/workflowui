@@ -663,10 +663,10 @@ describe("[16] Step Nodes Show Elapsed Time", () => {
   }, TEST_TIMEOUT);
 });
 
-// ── [17] Large Workflow Grid Loads All Pages via Auto-Fetch ──────────────────
+// ── [17] Large Workflow Grid: Server-Side Pagination ─────────────────────────
 
-describe("[17] Large Workflow Grid Loads All Pages via Auto-Fetch", () => {
-  test("all 4000 Checkout sub-steps are eventually rendered", async () => {
+describe("[17] Large Workflow Grid: Server-Side Pagination", () => {
+  test("4000 Checkout sub-steps are accessible via page navigation", async () => {
     const result = await uploadFixture("large-linear.json");
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
@@ -679,27 +679,60 @@ describe("[17] Large Workflow Grid Loads All Pages via Auto-Fetch", () => {
       await page.getByText("Checkout").first().click();
       await page.waitForURL(/\/steps\//, { timeout: 10_000 });
 
-      // The server returns 1000 steps per page; with 4000 sub-steps there are 4 pages.
-      // All pages should be auto-fetched so steps from page 2+ appear in the DOM.
-      // "Checkout Step 1000" is the first step of page 2 (0-indexed), confirming page 2 loaded.
+      // Page 1 loads automatically (steps 0–999) — verify a step from page 1 is visible
+      await page
+        .getByText("Checkout Step 0")
+        .first()
+        .waitFor({ timeout: 30_000 });
+      expect(
+        await page.getByText("Checkout Step 0").first().isVisible(),
+        "step from page 1 is visible",
+      ).toBe(true);
+
+      // "Checkout Step 1000" is on page 2 — click Next to fetch and navigate to it
+      const nextButton = page.getByRole("button", { name: /next/i });
+      await nextButton.click();
       await page
         .getByText("Checkout Step 1000")
         .first()
         .waitFor({ timeout: 30_000 });
       expect(
         await page.getByText("Checkout Step 1000").first().isVisible(),
-        "step from page 2 is rendered",
+        "step from page 2 is visible after clicking Next",
       ).toBe(true);
 
-      // Verify the last step confirms all 4 pages loaded.
-      // Allow extra time: 4 pages × fetch latency + DOM rendering of 4000 nodes.
+      // Navigate to page 3
+      await nextButton.click();
+      await page
+        .getByText("Checkout Step 2000")
+        .first()
+        .waitFor({ timeout: 30_000 });
+      expect(
+        await page.getByText("Checkout Step 2000").first().isVisible(),
+        "step from page 3 is visible",
+      ).toBe(true);
+
+      // Navigate to page 4 — last page
+      await nextButton.click();
       await page
         .getByText("Checkout Step 3999")
         .first()
         .waitFor({ timeout: 30_000 });
       expect(
         await page.getByText("Checkout Step 3999").first().isVisible(),
-        "last step (index 3999) is rendered",
+        "last step (index 3999) is visible on page 4",
+      ).toBe(true);
+
+      // Verify Previous works — go back to page 3
+      const prevButton = page.getByRole("button", { name: /previous/i });
+      await prevButton.click();
+      await page
+        .getByText("Checkout Step 2000")
+        .first()
+        .waitFor({ timeout: 10_000 });
+      expect(
+        await page.getByText("Checkout Step 2000").first().isVisible(),
+        "back to page 3 after clicking Previous",
       ).toBe(true);
     } finally {
       await ctx.close();

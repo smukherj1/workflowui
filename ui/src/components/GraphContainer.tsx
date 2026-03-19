@@ -39,13 +39,22 @@ export default function GraphContainer({
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   });
 
+  const allSteps: Step[] = data?.pages.flatMap((p) => p.steps) ?? [];
+  const allDeps: Dependency[] =
+    data?.pages.flatMap((p) => p.dependencies) ?? [];
+
+  // Use grid mode if step count exceeds threshold or user selected grid view
+  const useGrid = allSteps.length > GRID_THRESHOLD || viewMode === "grid";
+  // Graph mode needs all pages for dagre layout; grid mode fetches on demand
+  const needsAllPages = !useGrid;
+
   useEffect(() => {
-    if (hasNextPage && !isFetchingNextPage) {
+    if (needsAllPages && hasNextPage && !isFetchingNextPage) {
       fetchNextPage();
     }
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  }, [needsAllPages, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  if (isLoading || hasNextPage) {
+  if (isLoading) {
     return (
       <div
         style={{
@@ -56,7 +65,24 @@ export default function GraphContainer({
           color: "#64748b",
         }}
       >
-        {isLoading ? "Loading steps..." : "Loading more steps..."}
+        Loading steps...
+      </div>
+    );
+  }
+
+  // In graph mode, wait for all pages before rendering
+  if (needsAllPages && hasNextPage) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flex: 1,
+          color: "#64748b",
+        }}
+      >
+        Loading more steps...
       </div>
     );
   }
@@ -92,16 +118,13 @@ export default function GraphContainer({
     );
   }
 
-  const allSteps: Step[] = data?.pages.flatMap((p) => p.steps) ?? [];
-  const allDeps: Dependency[] =
-    data?.pages.flatMap((p) => p.dependencies) ?? [];
-
   const filteredSteps =
     statusFilter.length === 0
       ? allSteps
       : allSteps.filter((s) => statusFilter.includes(s.status));
 
-  if (filteredSteps.length === 0) {
+  // Show empty state only in graph mode (grid mode handles its own empty state)
+  if (!useGrid && filteredSteps.length === 0) {
     return (
       <div
         style={{
@@ -120,8 +143,6 @@ export default function GraphContainer({
   // Use "/" for root level; backend strips trailing slash to get LIKE "/%"
   const logsStepPath = parentPath || "/";
   const viewLogsUrl = `/workflows/${workflowId}/logs?stepPath=${encodeURIComponent(logsStepPath)}`;
-
-  const useGrid = allSteps.length > GRID_THRESHOLD || viewMode === "grid";
 
   const visibleDeps = useGrid
     ? []
@@ -154,7 +175,13 @@ export default function GraphContainer({
       </div>
       <div style={{ flex: 1, minHeight: 0 }}>
         {useGrid ? (
-          <GridFallback steps={filteredSteps} parentPath={parentPath} />
+          <GridFallback
+            parentPath={parentPath}
+            allPages={data?.pages ?? []}
+            hasNextPage={!!hasNextPage}
+            fetchNextPage={fetchNextPage}
+            isFetchingNextPage={isFetchingNextPage}
+          />
         ) : (
           <GraphView
             steps={filteredSteps}
