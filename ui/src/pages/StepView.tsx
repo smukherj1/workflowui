@@ -77,29 +77,19 @@ export default function StepView() {
     endTime: step.endTime ?? undefined,
   };
 
-  const logsUrl = `/workflows/${workflowId}/logs?stepPath=${encodeURIComponent(step.hierarchyPath)}`;
-
   return (
     <div style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.5rem", height: "100%" }}>
       <InfoCard metadata={metadata} />
       {step.isLeaf ? (
         <LeafDetail step={step} workflowId={workflowId!} />
       ) : (
-        <>
-          <Link
-            to={logsUrl}
-            style={{ color: "#60a5fa", fontSize: "0.875rem", textDecoration: "none" }}
-          >
-            View Logs
-          </Link>
-          <div style={{ flex: 1, minHeight: 0 }}>
-            <GraphContainer
-              workflowId={workflowId!}
-              parentId={uuid}
-              parentPath={step.hierarchyPath}
-            />
-          </div>
-        </>
+        <div style={{ flex: 1, minHeight: 0 }}>
+          <GraphContainer
+            workflowId={workflowId!}
+            parentId={uuid}
+            parentPath={step.hierarchyPath}
+          />
+        </div>
       )}
     </div>
   );

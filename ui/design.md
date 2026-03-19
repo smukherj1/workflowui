@@ -245,8 +245,8 @@ On load, calls `setStepBreadcrumbs(breadcrumbs)` from the Zustand store so `Work
 
 Content:
 - **`InfoCard`** displaying the step's metadata (name, URI, pin, start/end times, duration)
-- **Non-leaf step**: renders `GraphContainer` with `parentId=uuid` and `parentPath=step.hierarchyPath`, plus a "View Logs" link to `/workflows/:workflowId/logs?stepPath=<hierarchyPath>`
-- **Leaf step**: renders `LeafDetail`, plus a "View Logs" link to the dedicated log viewer
+- **Non-leaf step**: renders `GraphContainer` with `parentId=uuid` and `parentPath=step.hierarchyPath`
+- **Leaf step**: renders `LeafDetail`
 
 ### `LeafDetail` — `src/components/LeafDetail.tsx`
 
@@ -289,7 +289,7 @@ The user enters a workflow ID or step UUID in the `NavigateForm` on the landing 
 
 The user navigates to the dedicated log viewer from:
 - The "View Logs" link in `GraphContainer` (merged logs for a hierarchy level)
-- The "View Logs" link in `StepView` / `LeafDetail` (logs for a specific step and its descendants)
+- The "View Logs" link in `LeafDetail` (logs for a specific leaf step)
 - Clicking a leaf `StepNode` in the graph (navigates directly to the log viewer for that step)
 
 `LogsPage` reads `stepPath` from the URL query string and fetches one page of logs at a time. The user navigates between pages using prev/next controls.
