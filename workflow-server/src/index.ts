@@ -13,9 +13,10 @@ app.route("/api/workflows", logsRouter);
 app.route("/api/steps", stepsGlobalRouter);
 
 const port = Number(process.env.PORT ?? 3001);
-console.log(`workflow-server listening on :${port}`);
 
-export default {
+Bun.serve({
   port,
   fetch: app.fetch,
-};
+});
+
+console.log(`workflow-server listening on :${port}`);
