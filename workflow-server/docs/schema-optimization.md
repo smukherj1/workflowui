@@ -1,0 +1,222 @@
+# Schema Optimization: Cascade Delete & Insert Performance
+
+## Problem
+
+Uploading and deleting the large workflow test fixture (`tests/data/large-linear.json`, ~11K steps, ~11K dependencies) is slow:
+
+| Operation | Current Time |
+| --------- | ------------ |
+| Upload    | ~5.5s        |
+| Delete    | ~35s         |
+
+## Root Cause Analysis
+
+### Delete: 35s → cascade FK trigger storm
+
+When `DELETE FROM workflows WHERE id = ?` runs, PostgreSQL processes cascades **row by row**. The current FK chain is:
+
+```
+workflows.id
+  ← steps.workflow_id (CASCADE)           -- 11,003 step rows deleted
+      ← steps.parent_step_id (CASCADE)    -- self-ref FK, checked 11,003 times
+      ← step_dependencies.step_uuid (CASCADE)       -- checked 11,003 times
+      ← step_dependencies.depends_on_uuid (CASCADE)  -- checked 11,003 times, NO INDEX
+      ← step_logs.step_uuid (CASCADE)     -- checked 11,003 times
+```
+
+`EXPLAIN ANALYZE` confirms the trigger costs (measured on live DB):
+
+| Constraint                                | Calls  | Time     |
+| ----------------------------------------- | ------ | -------- |
+| `steps_workflow_id_fkey`                   | 1      | 11ms     |
+| `steps_parent_step_id_fkey`               | 11,003 | 1,162ms  |
+| `step_dependencies_step_uuid_fkey`        | 11,003 | 214ms    |
+| `step_dependencies_depends_on_uuid_fkey`  | 11,003 | **33,000ms+** |
+| `step_logs_step_uuid_fkey`                | 11,003 | 213ms    |
+| **Total**                                 |        | **~35s** |
+
+Two compounding issues:
+
+1. **Missing index on `depends_on_uuid`**: The composite PK `(step_uuid, depends_on_uuid)` covers lookups by `step_uuid` but NOT by `depends_on_uuid` alone. Every step deletion triggers a sequential scan of the entire `step_dependencies` table to find rows where `depends_on_uuid` matches the deleted step. This accounts for ~33s of the 35s total.
+
+2. **Per-row cascade triggers**: Even with proper indexes, each of the 11,003 step deletions fires 4 separate FK constraint checks. The self-referential `parent_step_id` FK alone costs 1.16s because PostgreSQL must recursively check/delete child steps one at a time.
+
+### Experimental validation
+
+Tested incrementally against the live database:
+
+| Change | Delete Time | Speedup |
+| ------ | ----------- | ------- |
+| Baseline (current schema) | 35,058ms | — |
+| + Add index on `depends_on_uuid` | 1,822ms | **19x** |
+| + Also drop `parent_step_id` FK | 612ms | **57x** |
+| + Move all FKs to `workflow_id` (proposed) | **54ms** | **649x** |
+
+### Upload: 5.5s → individual INSERT round-trips
+
+The upload inserts rows one at a time in a loop:
+
+- 11,003 individual `INSERT INTO steps ... RETURNING id` statements
+- 10,999 individual `INSERT INTO step_dependencies` statements
+- 11,000 individual `INSERT INTO step_logs` statements
+- **Total: ~33,000 round-trips** in a single transaction
+
+Each round-trip has overhead from query parsing, planning, and client-server communication, even within a transaction.
+
+---
+
+## Proposed Changes
+
+### 1. Add `workflow_id` to `step_dependencies` and `step_logs`, cascade from workflow
+
+Replace the step-level FK cascades with direct workflow-level cascades. This makes each child table independently deletable by workflow ID in a single bulk operation (calls=1) instead of per-step (calls=N).
+
+**step_dependencies: before**
+```sql
+CREATE TABLE step_dependencies (
+    step_uuid       UUID NOT NULL REFERENCES steps(id) ON DELETE CASCADE,
+    depends_on_uuid UUID NOT NULL REFERENCES steps(id) ON DELETE CASCADE,
+    PRIMARY KEY (step_uuid, depends_on_uuid)
+);
+```
+
+**step_dependencies: after**
+```sql
+CREATE TABLE step_dependencies (
+    workflow_id     UUID NOT NULL REFERENCES workflows(id) ON DELETE CASCADE,
+    step_uuid       UUID NOT NULL,
+    depends_on_uuid UUID NOT NULL,
+    PRIMARY KEY (step_uuid, depends_on_uuid)
+);
+CREATE INDEX idx_step_deps_workflow ON step_dependencies(workflow_id);
+```
+
+**step_logs: before**
+```sql
+CREATE TABLE step_logs (
+    step_uuid   UUID PRIMARY KEY REFERENCES steps(id) ON DELETE CASCADE,
+    log_text    TEXT NOT NULL
+);
+```
+
+**step_logs: after**
+```sql
+CREATE TABLE step_logs (
+    workflow_id UUID NOT NULL REFERENCES workflows(id) ON DELETE CASCADE,
+    step_uuid   UUID PRIMARY KEY,
+    log_text    TEXT NOT NULL
+);
+CREATE INDEX idx_step_logs_workflow ON step_logs(workflow_id);
+```
+
+### 2. Drop self-referential FK on `steps.parent_step_id`
+
+The `parent_step_id` FK causes per-row recursive cascade checks during deletion. Since steps already cascade via `workflow_id`, and individual step deletions outside of workflow deletion never happen, this FK adds cost with no benefit.
+
+**steps: before**
+```sql
+parent_step_id  UUID REFERENCES steps(id) ON DELETE CASCADE,
+```
+
+**steps: after**
+```sql
+parent_step_id  UUID,  -- no FK constraint; cascade handled by workflow_id
+```
+
+The `idx_steps_workflow_parent` index on `(workflow_id, parent_step_id)` is retained for query performance.
+
+### 3. Batch inserts for upload performance
+
+Replace individual `INSERT ... RETURNING id` loops with multi-row INSERT statements in batches of 1000. This reduces ~33,000 round-trips to ~33.
+
+For steps, the challenge is that each step needs its generated UUID for the `tempId → uuid` map. Use `unnest()` array inserts with `RETURNING` to insert a full batch and get all UUIDs back in one round-trip:
+
+```sql
+INSERT INTO steps (workflow_id, step_id, parent_step_id, hierarchy_path, name, uri, pin, status, start_time, end_time, is_leaf, depth, sort_order)
+SELECT * FROM unnest($1::uuid[], $2::text[], $3::uuid[], ...)
+RETURNING id
+```
+
+For dependencies and logs (which don't need RETURNING), use plain multi-row VALUES:
+
+```sql
+INSERT INTO step_dependencies (workflow_id, step_uuid, depends_on_uuid)
+VALUES ($1,$2,$3), ($4,$5,$6), ...
+```
+
+---
+
+## Migration Plan
+
+### Files to modify
+
+1. **`workflow-server/src/lib/schema.ts`** — Update Drizzle schema:
+   - Add `workflowId` column to `stepDependencies` with FK to `workflows.id` ON DELETE CASCADE
+   - Remove `.references(() => steps.id, ...)` from both `stepUuid` and `dependsOnUuid` in `stepDependencies`
+   - Add `workflowId` column to `stepLogs` with FK to `workflows.id` ON DELETE CASCADE
+   - Remove `.references(() => steps.id, ...)` from `stepLogs.stepUuid`
+   - Remove `.references(() => steps.id, ...)` from `steps.parentStepId`
+
+2. **`workflow-server/src/lib/db.ts`** — Update insert and query logic:
+   - `insertWorkflow`: batch step inserts using `unnest()`, include `workflowId` in dependency and log inserts, batch dependency and log inserts using multi-row VALUES
+   - `getStepsAtLevel`: dependency query already joins via step_uuid (no change needed for reads)
+
+3. **`storage/init.sql`** — Update reference SQL to match new schema
+
+4. **`workflow-server/design.md`** — Update schema documentation
+
+5. **Generate Drizzle migration** — `bun run drizzle-kit generate` to create the migration SQL, then `bun run drizzle-kit migrate` to apply
+
+### Database migration SQL
+
+```sql
+-- Add workflow_id to step_dependencies
+ALTER TABLE step_dependencies ADD COLUMN workflow_id UUID;
+UPDATE step_dependencies sd SET workflow_id = s.workflow_id FROM steps s WHERE sd.step_uuid = s.id;
+ALTER TABLE step_dependencies ALTER COLUMN workflow_id SET NOT NULL;
+
+-- Swap FKs on step_dependencies
+ALTER TABLE step_dependencies DROP CONSTRAINT step_dependencies_step_uuid_fkey;
+ALTER TABLE step_dependencies DROP CONSTRAINT step_dependencies_depends_on_uuid_fkey;
+ALTER TABLE step_dependencies ADD CONSTRAINT step_dependencies_workflow_id_fkey
+  FOREIGN KEY (workflow_id) REFERENCES workflows(id) ON DELETE CASCADE;
+CREATE INDEX idx_step_deps_workflow ON step_dependencies(workflow_id);
+
+-- Add workflow_id to step_logs
+ALTER TABLE step_logs ADD COLUMN workflow_id UUID;
+UPDATE step_logs sl SET workflow_id = s.workflow_id FROM steps s WHERE sl.step_uuid = s.id;
+ALTER TABLE step_logs ALTER COLUMN workflow_id SET NOT NULL;
+
+-- Swap FK on step_logs
+ALTER TABLE step_logs DROP CONSTRAINT step_logs_step_uuid_fkey;
+ALTER TABLE step_logs ADD CONSTRAINT step_logs_workflow_id_fkey
+  FOREIGN KEY (workflow_id) REFERENCES workflows(id) ON DELETE CASCADE;
+CREATE INDEX idx_step_logs_workflow ON step_logs(workflow_id);
+
+-- Drop self-referential FK on steps
+ALTER TABLE steps DROP CONSTRAINT steps_parent_step_id_fkey;
+```
+
+### Verification
+
+After implementation, re-run the large workflow upload/delete and confirm:
+
+| Operation | Before | Expected After |
+| --------- | ------ | -------------- |
+| Upload    | ~5.5s  | < 1s           |
+| Delete    | ~35s   | < 100ms        |
+
+Run existing E2E tests (`bun run test:e2e-backend`) to verify no regressions.
+
+---
+
+## Tradeoffs
+
+**What we lose:**
+- No FK-enforced referential integrity between `step_dependencies` rows and `steps` rows. A bug in the upload pipeline could insert a dependency referencing a non-existent step UUID. This is acceptable because the upload pipeline already validates all `dependsOn` references before inserting.
+- Same for `step_logs` — no FK guarantee that `step_uuid` exists in `steps`. Again, the upload pipeline controls all writes.
+
+**What we gain:**
+- ~650x faster deletes (54ms vs 35s)
+- Simpler cascade model: deleting a workflow does 3 parallel bulk deletes instead of a recursive per-row cascade chain
+- Foundation for batched inserts to improve upload speed

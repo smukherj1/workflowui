@@ -23,7 +23,10 @@ router.post("/", async (c) => {
 
   const parsed = workflowSchema.safeParse(body);
   if (!parsed.success) {
-    return c.json({ error: parsed.error.message, details: parsed.error.issues }, 400);
+    return c.json(
+      { error: parsed.error.message, details: parsed.error.issues },
+      400,
+    );
   }
 
   const structErr = validateStructureAndDAG(parsed.data as any);
@@ -44,7 +47,7 @@ router.post("/", async (c) => {
 // GET /api/workflows/:id
 router.get(
   "/:id",
-  zValidator("param", z.object({ id: z.string().uuid() })),
+  zValidator("param", z.object({ id: z.uuid() })),
   async (c) => {
     const { id } = c.req.valid("param");
     const wf = await getWorkflow(id);
@@ -68,7 +71,7 @@ router.get(
 // DELETE /api/workflows/:id
 router.delete(
   "/:id",
-  zValidator("param", z.object({ id: z.string().uuid() })),
+  zValidator("param", z.object({ id: z.uuid() })),
   async (c) => {
     const { id } = c.req.valid("param");
     const deleted = await deleteWorkflow(id);
