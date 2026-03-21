@@ -10,64 +10,9 @@ The server runs on **Bun** and uses **Hono** for HTTP routing with **Zod** for r
 
 ## Database Schema (PostgreSQL)
 
-The schema is defined using Drizzle ORM in `src/lib/schema.ts` and managed via Drizzle migrations. The reference SQL in `/storage/init.sql` is kept for documentation but Drizzle is the source of truth.
+The schema is defined using Drizzle ORM in `src/lib/schema.ts` and managed via Drizzle migrations.
 
-```sql
-CREATE TABLE workflows (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name        TEXT NOT NULL,
-    uri         TEXT,
-    pin         TEXT,
-    start_time  TIMESTAMPTZ,
-    end_time    TIMESTAMPTZ,
-    uploaded_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    expires_at  TIMESTAMPTZ NOT NULL DEFAULT now() + INTERVAL '7 days',
-    total_steps INTEGER NOT NULL,
-    status      TEXT NOT NULL
-);
-
-CREATE TABLE steps (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    workflow_id     UUID NOT NULL REFERENCES workflows(id) ON DELETE CASCADE,
-    step_id         TEXT NOT NULL,
-    parent_step_id  UUID REFERENCES steps(id) ON DELETE CASCADE,
-    hierarchy_path  TEXT NOT NULL,        -- e.g. "/step-3/step-3-1"
-    name            TEXT NOT NULL,
-    uri             TEXT,
-    pin             TEXT,
-    status          TEXT NOT NULL,
-    start_time      TIMESTAMPTZ,
-    end_time        TIMESTAMPTZ,
-    is_leaf         BOOLEAN NOT NULL,
-    depth           INTEGER NOT NULL,
-    sort_order      INTEGER NOT NULL DEFAULT 0
-);
-
-CREATE TABLE step_dependencies (
-    step_uuid       UUID NOT NULL REFERENCES steps(id) ON DELETE CASCADE,
-    depends_on_uuid UUID NOT NULL REFERENCES steps(id) ON DELETE CASCADE,
-    PRIMARY KEY (step_uuid, depends_on_uuid)
-);
-
-CREATE TABLE step_logs (
-    step_uuid   UUID PRIMARY KEY REFERENCES steps(id) ON DELETE CASCADE,
-    log_text    TEXT NOT NULL
-);
-
-CREATE INDEX idx_steps_workflow_parent ON steps(workflow_id, parent_step_id);
-CREATE INDEX idx_steps_hierarchy_path ON steps(workflow_id, hierarchy_path);
-CREATE INDEX idx_workflows_expires_at ON workflows(expires_at);
-```
-
-Key changes from the previous schema:
-- `workflows` table: the free-form `metadata JSONB` column is replaced with structured `uri`, `pin`, `start_time`, and `end_time` columns matching the standardized metadata.
-- `steps` table: `uri` and `pin` columns added to match the standardized metadata.
-
-`hierarchy_path` enables prefix queries for merged log views: `WHERE hierarchy_path LIKE '/step-3/%'`.
-
-`step_logs` stores one row per leaf step. `log_text` is the full log string for that step. CASCADE delete cleans up logs automatically when steps or workflows are removed.
-
-Workflow expiry: a daily cron or pg_cron runs `DELETE FROM workflows WHERE expires_at < now()`. Cascade deletes remove all steps and logs.
+TODO: Workflow expiry: a daily cron or pg_cron runs `DELETE FROM workflows WHERE expires_at < now()`. Cascade deletes remove all steps and logs.
 
 ---
 
@@ -76,6 +21,7 @@ Workflow expiry: a daily cron or pg_cron runs `DELETE FROM workflows WHERE expir
 The Drizzle schema in `src/lib/schema.ts` mirrors the SQL above using Drizzle's PostgreSQL column builders (`pgTable`, `uuid`, `text`, `timestamp`, `integer`, `boolean`). Relations are defined for cascading deletes and join queries.
 
 Drizzle provides:
+
 - **Type-safe queries**: All `select`, `insert`, `update`, and `delete` operations are fully typed based on the schema definition.
 - **Schema migrations**: `drizzle-kit` generates SQL migrations from schema changes (`bun run drizzle-kit generate` and `bun run drizzle-kit migrate`).
 - **Query builder**: Complex queries (joins, subqueries, aggregations) use Drizzle's SQL-like builder API rather than raw strings.
@@ -113,9 +59,9 @@ Each route defines Zod schemas for path parameters, query parameters, and reques
 Example pattern:
 
 ```typescript
-import { Hono } from 'hono';
-import { zValidator } from '@hono/zod-validator';
-import { z } from 'zod';
+import { Hono } from "hono";
+import { zValidator } from "@hono/zod-validator";
+import { z } from "zod";
 
 const app = new Hono();
 
@@ -126,14 +72,15 @@ const querySchema = z.object({
   limit: z.coerce.number().int().min(1).max(1000).default(1000),
 });
 
-app.get('/api/workflows/:id/steps',
-  zValidator('param', paramsSchema),
-  zValidator('query', querySchema),
+app.get(
+  "/api/workflows/:id/steps",
+  zValidator("param", paramsSchema),
+  zValidator("query", querySchema),
   async (c) => {
-    const { id } = c.req.valid('param');
-    const { parentId, cursor, limit } = c.req.valid('query');
+    const { id } = c.req.valid("param");
+    const { parentId, cursor, limit } = c.req.valid("query");
     // ... handler logic
-  }
+  },
 );
 ```
 
@@ -145,15 +92,15 @@ This replaces the previous AJV-based validation, providing compile-time type inf
 
 All routes are served on `:3001`.
 
-| Method | Endpoint                                           | Handler file              | Purpose                                                       |
-| ------ | -------------------------------------------------- | ------------------------- | ------------------------------------------------------------- |
-| POST   | `/api/workflows`                                   | `routes/workflows.ts`     | Upload workflow JSON, returns `{ workflowId, viewUrl }`       |
-| GET    | `/api/workflows/:id`                               | `routes/workflows.ts`     | Workflow detail (metadata, status, timestamps)                |
-| DELETE | `/api/workflows/:id`                               | `routes/workflows.ts`     | Delete workflow and all associated steps/logs (204/404)       |
-| GET    | `/api/workflows/:id/steps?parentId=`               | `routes/steps.ts`         | Steps at hierarchy level with dependencies (cursor-paginated) |
-| GET    | `/api/workflows/:id/steps/:uuid`                   | `routes/steps.ts`         | Step detail with breadcrumbs                                  |
-| GET    | `/api/steps/:uuid`                                 | `routes/steps.ts`         | Step lookup by UUID (returns workflow ID and step detail)      |
-| GET    | `/api/workflows/:id/logs?stepPath=&limit=&cursor=` | `routes/logs.ts`          | Merged logs for a step scope (cursor-paginated)               |
+| Method | Endpoint                                           | Handler file          | Purpose                                                       |
+| ------ | -------------------------------------------------- | --------------------- | ------------------------------------------------------------- |
+| POST   | `/api/workflows`                                   | `routes/workflows.ts` | Upload workflow JSON, returns `{ workflowId, viewUrl }`       |
+| GET    | `/api/workflows/:id`                               | `routes/workflows.ts` | Workflow detail (metadata, status, timestamps)                |
+| DELETE | `/api/workflows/:id`                               | `routes/workflows.ts` | Delete workflow and all associated steps/logs (204/404)       |
+| GET    | `/api/workflows/:id/steps?parentId=`               | `routes/steps.ts`     | Steps at hierarchy level with dependencies (cursor-paginated) |
+| GET    | `/api/workflows/:id/steps/:uuid`                   | `routes/steps.ts`     | Step detail with breadcrumbs                                  |
+| GET    | `/api/steps/:uuid`                                 | `routes/steps.ts`     | Step lookup by UUID (returns workflow ID and step detail)     |
+| GET    | `/api/workflows/:id/logs?stepPath=&limit=&cursor=` | `routes/logs.ts`      | Merged logs for a step scope (cursor-paginated)               |
 
 **Workflow detail response shape:**
 
@@ -299,24 +246,24 @@ workflow-server/
 
 ## Dependencies
 
-| Package            | Purpose                                          |
-| ------------------ | ------------------------------------------------ |
-| `hono`             | HTTP framework with type-safe routing            |
-| `@hono/zod-validator` | Zod middleware for Hono request validation     |
-| `zod`              | Schema declaration and validation                |
-| `drizzle-orm`      | Type-safe ORM for PostgreSQL                     |
-| `drizzle-kit`      | Schema migration tooling (dev dependency)        |
-| `pg`               | PostgreSQL client (used by Drizzle's pg adapter) |
+| Package               | Purpose                                          |
+| --------------------- | ------------------------------------------------ |
+| `hono`                | HTTP framework with type-safe routing            |
+| `@hono/zod-validator` | Zod middleware for Hono request validation       |
+| `zod`                 | Schema declaration and validation                |
+| `drizzle-orm`         | Type-safe ORM for PostgreSQL                     |
+| `drizzle-kit`         | Schema migration tooling (dev dependency)        |
+| `pg`                  | PostgreSQL client (used by Drizzle's pg adapter) |
 
 ---
 
 ## Environment Variables
 
-| Variable     | Default      | Description             |
-| ------------ | ------------ | ----------------------- |
-| `PORT`       | `3001`       | HTTP listen port        |
-| `PGHOST`     | `localhost`  | PostgreSQL host         |
-| `PGPORT`     | `5432`       | PostgreSQL port         |
-| `PGDATABASE` | `workflowui` | Database name           |
-| `PGUSER`     | `workflowui` | Database user           |
-| `PGPASSWORD` | `workflowui` | Database password       |
+| Variable     | Default      | Description       |
+| ------------ | ------------ | ----------------- |
+| `PORT`       | `3001`       | HTTP listen port  |
+| `PGHOST`     | `localhost`  | PostgreSQL host   |
+| `PGPORT`     | `5432`       | PostgreSQL port   |
+| `PGDATABASE` | `workflowui` | Database name     |
+| `PGUSER`     | `workflowui` | Database user     |
+| `PGPASSWORD` | `workflowui` | Database password |
