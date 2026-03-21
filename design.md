@@ -135,9 +135,6 @@ See [`ui/design.md`](ui/design.md) for the full details on:
   PRD.md
   design.md
 
-  /storage/                            # Infrastructure configs
-    init.sql                           # PostgreSQL schema (reference; Drizzle manages migrations)
-
   /ui/                                 # Vite + React SPA (see ui/design.md)
     design.md                          # Frontend technical design
     package.json
