@@ -9,7 +9,6 @@ import {
   primaryKey,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import { table } from "node:console";
 
 export const workflows = pgTable("workflows", {
   id: uuid("id")
@@ -52,7 +51,12 @@ export const steps = pgTable(
     depth: integer("depth").notNull(),
     sortOrder: integer("sort_order").notNull().default(0),
   },
-  (table) => [index("steps_by_workflow_idx").on(table.workflowId)],
+  (table) => [
+    index("steps_by_workflow_and_parent_idx").on(
+      table.workflowId,
+      table.parentStepId,
+    ),
+  ],
 );
 
 export const stepDependencies = pgTable(
