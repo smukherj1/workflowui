@@ -5,12 +5,16 @@ import {
   integer,
   boolean,
   timestamp,
+  index,
   primaryKey,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+import { table } from "node:console";
 
 export const workflows = pgTable("workflows", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   uri: text("uri"),
   pin: text("pin"),
@@ -26,41 +30,54 @@ export const workflows = pgTable("workflows", {
   status: text("status").notNull(),
 });
 
-export const steps = pgTable("steps", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  workflowId: uuid("workflow_id")
-    .notNull()
-    .references(() => workflows.id, { onDelete: "cascade" }),
-  stepId: text("step_id").notNull(),
-  parentStepId: uuid("parent_step_id"),
-  hierarchyPath: text("hierarchy_path").notNull(),
-  name: text("name").notNull(),
-  uri: text("uri"),
-  pin: text("pin"),
-  status: text("status").notNull(),
-  startTime: timestamp("start_time", { withTimezone: true }),
-  endTime: timestamp("end_time", { withTimezone: true }),
-  isLeaf: boolean("is_leaf").notNull(),
-  depth: integer("depth").notNull(),
-  sortOrder: integer("sort_order").notNull().default(0),
-});
+export const steps = pgTable(
+  "steps",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    workflowId: uuid("workflow_id")
+      .notNull()
+      .references(() => workflows.id, { onDelete: "cascade" }),
+    stepId: text("step_id").notNull(),
+    parentStepId: uuid("parent_step_id"),
+    hierarchyPath: text("hierarchy_path").notNull(),
+    name: text("name").notNull(),
+    uri: text("uri"),
+    pin: text("pin"),
+    status: text("status").notNull(),
+    startTime: timestamp("start_time", { withTimezone: true }),
+    endTime: timestamp("end_time", { withTimezone: true }),
+    isLeaf: boolean("is_leaf").notNull(),
+    depth: integer("depth").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (table) => [index("steps_by_workflow_idx").on(table.workflowId)],
+);
 
 export const stepDependencies = pgTable(
   "step_dependencies",
   {
-    stepUuid: uuid("step_uuid")
+    workflowId: uuid("workflow_id")
       .notNull()
-      .references(() => steps.id, { onDelete: "cascade" }),
-    dependsOnUuid: uuid("depends_on_uuid")
-      .notNull()
-      .references(() => steps.id, { onDelete: "cascade" }),
+      .references(() => workflows.id, { onDelete: "cascade" }),
+    stepUuid: uuid("step_uuid").notNull(),
+    dependsOnUuid: uuid("depends_on_uuid").notNull(),
   },
-  (t) => [primaryKey({ columns: [t.stepUuid, t.dependsOnUuid] })],
+  (table) => [
+    primaryKey({ columns: [table.stepUuid, table.dependsOnUuid] }),
+    index("step_dependencies_by_workflow_idx").on(table.workflowId),
+  ],
 );
 
-export const stepLogs = pgTable("step_logs", {
-  stepUuid: uuid("step_uuid")
-    .primaryKey()
-    .references(() => steps.id, { onDelete: "cascade" }),
-  logText: text("log_text").notNull(),
-});
+export const stepLogs = pgTable(
+  "step_logs",
+  {
+    workflowId: uuid("workflow_id")
+      .notNull()
+      .references(() => workflows.id, { onDelete: "cascade" }),
+    stepUuid: uuid("step_uuid").primaryKey(),
+    logText: text("log_text").notNull(),
+  },
+  (table) => [index("step_logs_by_workflow_idx").on(table.workflowId)],
+);

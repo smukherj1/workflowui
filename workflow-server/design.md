@@ -18,13 +18,12 @@ TODO: Workflow expiry: a daily cron or pg_cron runs `DELETE FROM workflows WHERE
 
 ## Drizzle ORM
 
-The Drizzle schema in `src/lib/schema.ts` mirrors the SQL above using Drizzle's PostgreSQL column builders (`pgTable`, `uuid`, `text`, `timestamp`, `integer`, `boolean`). Relations are defined
-for join queries and to cascade deletes when a workflow is deleted.
+The Drizzle schema in `src/lib/schema.ts` mirrors the SQL above using Drizzle's PostgreSQL column builders (`pgTable`, `uuid`, `text`, `timestamp`, `integer`, `boolean`). Cascade deletes are wired directly from `workflows.id` to each child table (`steps`, `step_dependencies`, `step_logs`) so deleting a workflow triggers three parallel bulk deletes instead of a per-row cascade chain.
 
 Drizzle provides:
 
 - **Type-safe queries**: All `select`, `insert`, `update`, and `delete` operations are fully typed based on the schema definition.
-- **Schema migrations**: `drizzle-kit` generates SQL migrations from schema changes (`bun run drizzle-kit generate` and `bun run drizzle-kit migrate`).
+- **Schema management**: `bunx drizzle-kit push` applies schema changes directly to the database in development.
 - **Query builder**: Complex queries (joins, subqueries, aggregations) use Drizzle's SQL-like builder API rather than raw strings.
 
 The Drizzle client is initialized in `src/lib/db.ts` using `drizzle(pool)` with the `node-postgres` driver adapter.
@@ -217,7 +216,7 @@ Cursor for steps is `base64url(sort_order)`. Cursor for logs is `base64url(line_
 2. **Zod schema validation** — validates structure, field types, and metadata shape
 3. **Structural limits** — walk tree: max 1M steps/level, max 100 deps/step, max 10 MB logs/leaf, max 50 MB total logs, max hierarchy depth 10
 4. **DAG validation** — DFS at each hierarchy level to detect cycles in `dependsOn` references
-5. **DB insert** — single Drizzle transaction: insert workflow row, bulk-insert steps (batches of 1000), bulk-insert dependencies, bulk-insert leaf logs
+5. **DB insert** — single transaction: insert workflow row; bulk-insert steps in two passes (pass 1: `unnest()` batches of 1000 to get UUIDs; pass 2: batch `UPDATE` to set `parent_step_id`); bulk-insert dependencies and logs via `unnest()` batches of 1000 (each row includes `workflow_id` for direct cascade)
 6. **Return** — `201 { workflowId, viewUrl }` or `400 { error, details }`
 
 ---

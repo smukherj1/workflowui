@@ -31,7 +31,6 @@ async function uploadFixture(
   const body = fs.readFileSync(path.join(DATA_DIR, filename), "utf8");
   const res = await fetch(`${API_BASE}/api/workflows`, {
     method: "POST",
-    verbose: true,
     headers: { "Content-Type": "application/json" },
     body,
   });
