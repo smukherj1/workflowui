@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeAll } from "bun:test";
+import { describe, test, expect, beforeAll, afterAll } from "bun:test";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -36,6 +36,10 @@ async function get(endpoint: string): Promise<{ status: number; json: unknown }>
   }
   const json = await res.json();
   return { status: res.status, json };
+}
+
+async function deleteWorkflow(id: string): Promise<void> {
+  await fetch(`${API_BASE}/api/workflows/${id}`, { method: "DELETE" });
 }
 
 async function uploadWorkflow(file: string): Promise<string> {
@@ -94,6 +98,10 @@ describe("simple-linear.json", () => {
 
   beforeAll(async () => {
     workflowId = await uploadWorkflow("simple-linear.json");
+  });
+
+  afterAll(async () => {
+    if (workflowId) await deleteWorkflow(workflowId);
   });
 
   test("GET /api/workflows/:id returns workflow detail", async () => {
@@ -191,6 +199,10 @@ describe("parallel-diamond.json", () => {
     workflowId = await uploadWorkflow("parallel-diamond.json");
   });
 
+  afterAll(async () => {
+    if (workflowId) await deleteWorkflow(workflowId);
+  });
+
   test("GET /api/workflows/:id returns workflow detail", async () => {
     const { status, json } = await get(`/api/workflows/${workflowId}`);
     const body = json as Record<string, unknown>;
@@ -232,6 +244,10 @@ describe("nested-hierarchy.json", () => {
 
   beforeAll(async () => {
     workflowId = await uploadWorkflow("nested-hierarchy.json");
+  });
+
+  afterAll(async () => {
+    if (workflowId) await deleteWorkflow(workflowId);
   });
 
   test("GET /api/workflows/:id returns workflow detail", async () => {
@@ -338,6 +354,10 @@ describe("mixed-status.json", () => {
     workflowId = await uploadWorkflow("mixed-status.json");
   });
 
+  afterAll(async () => {
+    if (workflowId) await deleteWorkflow(workflowId);
+  });
+
   test("GET /api/workflows/:id returns workflow detail", async () => {
     const { status, json } = await get(`/api/workflows/${workflowId}`);
     const body = json as Record<string, unknown>;
@@ -387,6 +407,10 @@ describe("GET /api/steps/:uuid", () => {
       unknown
     >[];
     stepUuid = steps[0].uuid as string;
+  });
+
+  afterAll(async () => {
+    if (workflowId) await deleteWorkflow(workflowId);
   });
 
   test("returns workflowId and step detail", async () => {

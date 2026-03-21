@@ -185,6 +185,14 @@ export async function getWorkflow(id: string) {
   return rows[0] ?? null;
 }
 
+export async function deleteWorkflow(id: string): Promise<boolean> {
+  const result = await db
+    .delete(workflows)
+    .where(eq(workflows.id, id))
+    .returning({ id: workflows.id });
+  return result.length > 0;
+}
+
 export async function getStepsAtLevel(
   workflowId: string,
   parentId: string | null,

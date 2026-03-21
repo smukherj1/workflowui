@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { workflowSchema, validateStructureAndDAG } from "../lib/validation.js";
-import { insertWorkflow, getWorkflow } from "../lib/db.js";
+import { insertWorkflow, getWorkflow, deleteWorkflow } from "../lib/db.js";
 
 const router = new Hono();
 
@@ -62,6 +62,18 @@ router.get(
       uploadedAt: wf.uploadedAt,
       expiresAt: wf.expiresAt,
     });
+  },
+);
+
+// DELETE /api/workflows/:id
+router.delete(
+  "/:id",
+  zValidator("param", z.object({ id: z.string().uuid() })),
+  async (c) => {
+    const { id } = c.req.valid("param");
+    const deleted = await deleteWorkflow(id);
+    if (!deleted) return c.json({ error: "Not found" }, 404);
+    return c.body(null, 204);
   },
 );
 

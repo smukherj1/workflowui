@@ -149,6 +149,7 @@ All routes are served on `:3001`.
 | ------ | -------------------------------------------------- | ------------------------- | ------------------------------------------------------------- |
 | POST   | `/api/workflows`                                   | `routes/workflows.ts`     | Upload workflow JSON, returns `{ workflowId, viewUrl }`       |
 | GET    | `/api/workflows/:id`                               | `routes/workflows.ts`     | Workflow detail (metadata, status, timestamps)                |
+| DELETE | `/api/workflows/:id`                               | `routes/workflows.ts`     | Delete workflow and all associated steps/logs (204/404)       |
 | GET    | `/api/workflows/:id/steps?parentId=`               | `routes/steps.ts`         | Steps at hierarchy level with dependencies (cursor-paginated) |
 | GET    | `/api/workflows/:id/steps/:uuid`                   | `routes/steps.ts`         | Step detail with breadcrumbs                                  |
 | GET    | `/api/steps/:uuid`                                 | `routes/steps.ts`         | Step lookup by UUID (returns workflow ID and step detail)      |
