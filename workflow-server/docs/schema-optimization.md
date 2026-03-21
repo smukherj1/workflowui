@@ -7,39 +7,39 @@ Uploading and deleting the large workflow test fixture (`tests/data/large-linear
 | Operation | Current Time |
 | --------- | ------------ |
 | Upload    | ~5.5s        |
-| Delete    | ~35s         |
+| Delete    | ~33s         |
 
 ## Root Cause Analysis
 
-### Delete: 35s → cascade FK trigger storm
+### Delete: ~33s → cascade FK trigger storm
 
 When `DELETE FROM workflows WHERE id = ?` runs, PostgreSQL processes cascades **row by row**. The current FK chain is:
 
 ```
 workflows.id
   ← steps.workflow_id (CASCADE)           -- 11,003 step rows deleted
-      ← steps.parent_step_id (CASCADE)    -- self-ref FK, checked 11,003 times
       ← step_dependencies.step_uuid (CASCADE)       -- checked 11,003 times
       ← step_dependencies.depends_on_uuid (CASCADE)  -- checked 11,003 times, NO INDEX
       ← step_logs.step_uuid (CASCADE)     -- checked 11,003 times
 ```
+
+Note: `steps.parent_step_id` has no FK constraint (it is a plain UUID column), so it does not participate in the cascade chain.
 
 `EXPLAIN ANALYZE` confirms the trigger costs (measured on live DB):
 
 | Constraint                                | Calls  | Time     |
 | ----------------------------------------- | ------ | -------- |
 | `steps_workflow_id_fkey`                   | 1      | 11ms     |
-| `steps_parent_step_id_fkey`               | 11,003 | 1,162ms  |
 | `step_dependencies_step_uuid_fkey`        | 11,003 | 214ms    |
 | `step_dependencies_depends_on_uuid_fkey`  | 11,003 | **33,000ms+** |
 | `step_logs_step_uuid_fkey`                | 11,003 | 213ms    |
-| **Total**                                 |        | **~35s** |
+| **Total**                                 |        | **~33.4s** |
 
 Two compounding issues:
 
-1. **Missing index on `depends_on_uuid`**: The composite PK `(step_uuid, depends_on_uuid)` covers lookups by `step_uuid` but NOT by `depends_on_uuid` alone. Every step deletion triggers a sequential scan of the entire `step_dependencies` table to find rows where `depends_on_uuid` matches the deleted step. This accounts for ~33s of the 35s total.
+1. **Missing index on `depends_on_uuid`**: The composite PK `(step_uuid, depends_on_uuid)` covers lookups by `step_uuid` but NOT by `depends_on_uuid` alone. Every step deletion triggers a sequential scan of the entire `step_dependencies` table to find rows where `depends_on_uuid` matches the deleted step. This accounts for ~33s of the ~33.4s total.
 
-2. **Per-row cascade triggers**: Even with proper indexes, each of the 11,003 step deletions fires 4 separate FK constraint checks. The self-referential `parent_step_id` FK alone costs 1.16s because PostgreSQL must recursively check/delete child steps one at a time.
+2. **Per-row cascade triggers**: Even with proper indexes, each of the 11,003 step deletions fires 3 separate FK constraint checks (one for each child table). Moving cascades to `workflow_id` collapses these to a single bulk delete per table.
 
 ### Experimental validation
 
@@ -47,10 +47,11 @@ Tested incrementally against the live database:
 
 | Change | Delete Time | Speedup |
 | ------ | ----------- | ------- |
-| Baseline (current schema) | 35,058ms | — |
-| + Add index on `depends_on_uuid` | 1,822ms | **19x** |
-| + Also drop `parent_step_id` FK | 612ms | **57x** |
-| + Move all FKs to `workflow_id` (proposed) | **54ms** | **649x** |
+| Baseline (current schema) | ~33,400ms | — |
+| + Add index on `depends_on_uuid` | ~660ms | **~50x** |
+| + Move all FKs to `workflow_id` (proposed) | **~54ms** | **~620x** |
+
+*Note: Original measurements were taken on a DB that also had a self-referential FK on `steps.parent_step_id` (since removed). The numbers above are adjusted estimates excluding that constraint's ~1.2s cost.*
 
 ### Upload: 5.5s → individual INSERT round-trips
 
@@ -109,23 +110,7 @@ CREATE TABLE step_logs (
 CREATE INDEX idx_step_logs_workflow ON step_logs(workflow_id);
 ```
 
-### 2. Drop self-referential FK on `steps.parent_step_id`
-
-The `parent_step_id` FK causes per-row recursive cascade checks during deletion. Since steps already cascade via `workflow_id`, and individual step deletions outside of workflow deletion never happen, this FK adds cost with no benefit.
-
-**steps: before**
-```sql
-parent_step_id  UUID REFERENCES steps(id) ON DELETE CASCADE,
-```
-
-**steps: after**
-```sql
-parent_step_id  UUID,  -- no FK constraint; cascade handled by workflow_id
-```
-
-The `idx_steps_workflow_parent` index on `(workflow_id, parent_step_id)` is retained for query performance.
-
-### 3. Batch inserts for upload performance
+### 2. Batch inserts for upload performance
 
 Replace individual `INSERT ... RETURNING id` loops with multi-row INSERT statements in batches of 1000. This reduces ~33,000 round-trips to ~33.
 
@@ -155,17 +140,14 @@ VALUES ($1,$2,$3), ($4,$5,$6), ...
    - Remove `.references(() => steps.id, ...)` from both `stepUuid` and `dependsOnUuid` in `stepDependencies`
    - Add `workflowId` column to `stepLogs` with FK to `workflows.id` ON DELETE CASCADE
    - Remove `.references(() => steps.id, ...)` from `stepLogs.stepUuid`
-   - Remove `.references(() => steps.id, ...)` from `steps.parentStepId`
 
 2. **`workflow-server/src/lib/db.ts`** — Update insert and query logic:
    - `insertWorkflow`: batch step inserts using `unnest()`, include `workflowId` in dependency and log inserts, batch dependency and log inserts using multi-row VALUES
    - `getStepsAtLevel`: dependency query already joins via step_uuid (no change needed for reads)
 
-3. **`storage/init.sql`** — Update reference SQL to match new schema
+3. **`workflow-server/design.md`** — Update schema documentation
 
-4. **`workflow-server/design.md`** — Update schema documentation
-
-5. **Generate Drizzle migration** — `bun run drizzle-kit generate` to create the migration SQL, then `bun run drizzle-kit migrate` to apply
+4. **Generate Drizzle migration** — `bun run drizzle-kit generate` to create the migration SQL, then `bun run drizzle-kit migrate` to apply
 
 ### Database migration SQL
 
@@ -192,10 +174,9 @@ ALTER TABLE step_logs DROP CONSTRAINT step_logs_step_uuid_fkey;
 ALTER TABLE step_logs ADD CONSTRAINT step_logs_workflow_id_fkey
   FOREIGN KEY (workflow_id) REFERENCES workflows(id) ON DELETE CASCADE;
 CREATE INDEX idx_step_logs_workflow ON step_logs(workflow_id);
-
--- Drop self-referential FK on steps
-ALTER TABLE steps DROP CONSTRAINT steps_parent_step_id_fkey;
 ```
+
+Note: `steps.parent_step_id` already has no FK constraint, so no migration is needed for it.
 
 ### Verification
 
@@ -204,7 +185,7 @@ After implementation, re-run the large workflow upload/delete and confirm:
 | Operation | Before | Expected After |
 | --------- | ------ | -------------- |
 | Upload    | ~5.5s  | < 1s           |
-| Delete    | ~35s   | < 100ms        |
+| Delete    | ~33s   | < 100ms        |
 
 Run existing E2E tests (`bun run test:e2e-backend`) to verify no regressions.
 
@@ -217,6 +198,6 @@ Run existing E2E tests (`bun run test:e2e-backend`) to verify no regressions.
 - Same for `step_logs` — no FK guarantee that `step_uuid` exists in `steps`. Again, the upload pipeline controls all writes.
 
 **What we gain:**
-- ~650x faster deletes (54ms vs 35s)
+- ~620x faster deletes (~54ms vs ~33s)
 - Simpler cascade model: deleting a workflow does 3 parallel bulk deletes instead of a recursive per-row cascade chain
 - Foundation for batched inserts to improve upload speed
