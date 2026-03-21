@@ -2,8 +2,10 @@
   "name": "workflowui-root",
   "private": true,
   "scripts": {
-    "test:e2e-backend": "bun test ./tests/e2e-tests-backend.ts",
-    "test:e2e-frontend": "bun test ./tests/e2e-tests-frontend.ts"
+    "typecheck": "tsc --noEmit",
+    "test:e2e-backend": "tsc --noEmit && bun test ./tests/e2e-tests-backend.ts",
+    "test:e2e-frontend": "tsc --noEmit && bun test ./tests/e2e-tests-frontend.ts",
+    "upload-test-workflows": "tsc --noEmit && bun run ./scripts/upload-test-workflows.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.3.11",
