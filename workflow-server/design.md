@@ -18,7 +18,8 @@ TODO: Workflow expiry: a daily cron or pg_cron runs `DELETE FROM workflows WHERE
 
 ## Drizzle ORM
 
-The Drizzle schema in `src/lib/schema.ts` mirrors the SQL above using Drizzle's PostgreSQL column builders (`pgTable`, `uuid`, `text`, `timestamp`, `integer`, `boolean`). Relations are defined for cascading deletes and join queries.
+The Drizzle schema in `src/lib/schema.ts` mirrors the SQL above using Drizzle's PostgreSQL column builders (`pgTable`, `uuid`, `text`, `timestamp`, `integer`, `boolean`). Relations are defined
+for join queries and to cascade deletes when a workflow is deleted.
 
 Drizzle provides:
 
