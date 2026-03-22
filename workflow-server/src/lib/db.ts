@@ -82,25 +82,21 @@ export async function insertWorkflow(
   else if (allStatuses.includes("running")) wfStatus = "running";
   else if (allStatuses.includes("cancelled")) wfStatus = "cancelled";
 
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-
+  const workflowId = await db.transaction(async (tx) => {
     // Insert workflow
-    const wfResult = await client.query(
-      `INSERT INTO workflows (name, uri, pin, start_time, end_time, total_steps, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-      [
-        metadata.name,
-        metadata.uri ?? null,
-        metadata.pin ?? null,
-        metadata.startTime ?? null,
-        metadata.endTime ?? null,
+    const [wfRow] = await tx
+      .insert(workflows)
+      .values({
+        name: metadata.name,
+        uri: metadata.uri ?? null,
+        pin: metadata.pin ?? null,
+        startTime: metadata.startTime ? new Date(metadata.startTime) : null,
+        endTime: metadata.endTime ? new Date(metadata.endTime) : null,
         totalSteps,
-        wfStatus,
-      ],
-    );
-    const workflowId = wfResult.rows[0].id as string;
+        status: wfStatus,
+      })
+      .returning({ id: workflows.id });
+    const wfId = wfRow.id;
 
     // Build tempId → DB uuid map
     const tempToUuid = new Map<string, string>();
@@ -109,31 +105,29 @@ export async function insertWorkflow(
     const BATCH = 1000;
     for (let i = 0; i < flat.length; i += BATCH) {
       const batch = flat.slice(i, i + BATCH);
-      const wfIds = batch.map(() => workflowId);
-      const stepIds = batch.map((s) => s.stepId);
-      const hierarchyPaths = batch.map((s) => s.hierarchyPath);
-      const names = batch.map((s) => s.name);
-      const uris = batch.map((s) => s.uri ?? null);
-      const pins = batch.map((s) => s.pin ?? null);
-      const statuses = batch.map((s) => s.status);
-      const startTimes = batch.map((s) => s.startTime ?? null);
-      const endTimes = batch.map((s) => s.endTime ?? null);
-      const isLeafs = batch.map((s) => s.isLeaf);
-      const depths = batch.map((s) => s.depth);
-      const sortOrders = batch.map((s) => s.sortOrder);
-
-      const res = await client.query(
-        `INSERT INTO steps (workflow_id, step_id, parent_step_id, hierarchy_path, name, uri, pin, status, start_time, end_time, is_leaf, depth, sort_order)
-         SELECT * FROM unnest(
-           $1::uuid[], $2::text[], $3::uuid[], $4::text[], $5::text[],
-           $6::text[], $7::text[], $8::text[], $9::timestamptz[], $10::timestamptz[],
-           $11::bool[], $12::int[], $13::int[]
-         ) RETURNING id`,
-        [wfIds, stepIds, Array(batch.length).fill(null), hierarchyPaths, names, uris, pins, statuses, startTimes, endTimes, isLeafs, depths, sortOrders],
-      );
+      const rows = await tx
+        .insert(steps)
+        .values(
+          batch.map((s) => ({
+            workflowId: wfId,
+            stepId: s.stepId,
+            parentStepId: null as string | null,
+            hierarchyPath: s.hierarchyPath,
+            name: s.name,
+            uri: s.uri ?? null,
+            pin: s.pin ?? null,
+            status: s.status,
+            startTime: s.startTime ? new Date(s.startTime) : null,
+            endTime: s.endTime ? new Date(s.endTime) : null,
+            isLeaf: s.isLeaf,
+            depth: s.depth,
+            sortOrder: s.sortOrder,
+          })),
+        )
+        .returning({ id: steps.id });
 
       for (let j = 0; j < batch.length; j++) {
-        tempToUuid.set(batch[j].tempId, res.rows[j].id as string);
+        tempToUuid.set(batch[j].tempId, rows[j].id);
       }
     }
 
@@ -153,22 +147,19 @@ export async function insertWorkflow(
     for (let i = 0; i < childUuids.length; i += BATCH) {
       const cUuids = childUuids.slice(i, i + BATCH);
       const pUuids = parentUuids.slice(i, i + BATCH);
-      await client.query(
-        `UPDATE steps SET parent_step_id = u.parent_uuid
-         FROM unnest($1::uuid[], $2::uuid[]) AS u(child_uuid, parent_uuid)
-         WHERE steps.id = u.child_uuid`,
-        [cUuids, pUuids],
+      await tx.execute(
+        sql`UPDATE steps SET parent_step_id = u.parent_uuid
+            FROM unnest(
+              ARRAY[${sql.join(cUuids.map((id) => sql`${id}::uuid`), sql`, `)}],
+              ARRAY[${sql.join(pUuids.map((id) => sql`${id}::uuid`), sql`, `)}]
+            ) AS u(child_uuid, parent_uuid)
+            WHERE steps.id = u.child_uuid`,
       );
     }
 
     // Collect all dependencies and logs
-    const depWorkflowIds: string[] = [];
-    const depStepUuids: string[] = [];
-    const depDependsOnUuids: string[] = [];
-
-    const logWorkflowIds: string[] = [];
-    const logStepUuids: string[] = [];
-    const logTexts: string[] = [];
+    const depRows: (typeof stepDependencies.$inferInsert)[] = [];
+    const logRows: (typeof stepLogs.$inferInsert)[] = [];
 
     for (const s of flat) {
       const stepUuid = tempToUuid.get(s.tempId)!;
@@ -177,53 +168,29 @@ export async function insertWorkflow(
         const depTempId = `${parentPrefix}/${depId}`;
         const depUuid = tempToUuid.get(depTempId);
         if (depUuid) {
-          depWorkflowIds.push(workflowId);
-          depStepUuids.push(stepUuid);
-          depDependsOnUuids.push(depUuid);
+          depRows.push({ workflowId: wfId, stepUuid, dependsOnUuid: depUuid });
         }
       }
       if (s.isLeaf && s.logs !== null) {
-        logWorkflowIds.push(workflowId);
-        logStepUuids.push(stepUuid);
-        logTexts.push(s.logs);
+        logRows.push({ workflowId: wfId, stepUuid, logText: s.logs });
       }
     }
 
     // Batch insert dependencies
-    for (let i = 0; i < depStepUuids.length; i += BATCH) {
-      const wIds = depWorkflowIds.slice(i, i + BATCH);
-      const sUuids = depStepUuids.slice(i, i + BATCH);
-      const dUuids = depDependsOnUuids.slice(i, i + BATCH);
-      await client.query(
-        `INSERT INTO step_dependencies (workflow_id, step_uuid, depends_on_uuid)
-         SELECT * FROM unnest($1::uuid[], $2::uuid[], $3::uuid[])
-         ON CONFLICT DO NOTHING`,
-        [wIds, sUuids, dUuids],
-      );
+    for (let i = 0; i < depRows.length; i += BATCH) {
+      await tx.insert(stepDependencies).values(depRows.slice(i, i + BATCH));
     }
 
     // Batch insert logs
-    for (let i = 0; i < logStepUuids.length; i += BATCH) {
-      const wIds = logWorkflowIds.slice(i, i + BATCH);
-      const sUuids = logStepUuids.slice(i, i + BATCH);
-      const texts = logTexts.slice(i, i + BATCH);
-      await client.query(
-        `INSERT INTO step_logs (workflow_id, step_uuid, log_text)
-         SELECT * FROM unnest($1::uuid[], $2::uuid[], $3::text[])`,
-        [wIds, sUuids, texts],
-      );
+    for (let i = 0; i < logRows.length; i += BATCH) {
+      await tx.insert(stepLogs).values(logRows.slice(i, i + BATCH));
     }
 
-    await client.query("COMMIT");
+    return wfId;
+  });
 
-    const viewUrl = `http://${host}/workflows/${workflowId}`;
-    return { workflowId, viewUrl };
-  } catch (err) {
-    await client.query("ROLLBACK");
-    throw err;
-  } finally {
-    client.release();
-  }
+  const viewUrl = `http://${host}/workflows/${workflowId}`;
+  return { workflowId, viewUrl };
 }
 
 // ── Query functions ───────────────────────────────────────────────────────────
