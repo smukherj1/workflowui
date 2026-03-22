@@ -5,7 +5,7 @@ import { getStepsAtLevel, getStepDetail, getStepByUuid } from "../lib/db.js";
 
 const router = new Hono();
 
-// GET /api/workflows/:id/steps?parentId=&cursor=&limit=
+// GET /api/workflows/:id/steps?parentId=
 router.get(
   "/:id/steps",
   zValidator("param", z.object({ id: z.string().uuid() })),
@@ -13,15 +13,13 @@ router.get(
     "query",
     z.object({
       parentId: z.string().uuid().optional(),
-      cursor: z.string().optional(),
-      limit: z.coerce.number().int().min(1).max(1000).default(1000),
     }),
   ),
   async (c) => {
     const { id } = c.req.valid("param");
-    const { parentId, cursor, limit } = c.req.valid("query");
+    const { parentId } = c.req.valid("query");
 
-    const result = await getStepsAtLevel(id, parentId ?? null, cursor ?? null, limit);
+    const result = await getStepsAtLevel(id, parentId ?? null);
     return c.json(result);
   },
 );

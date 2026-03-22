@@ -42,7 +42,6 @@ export interface Dependency {
 export interface StepsResponse {
   steps: Step[];
   dependencies: Dependency[];
-  nextCursor: string | null;
 }
 
 export interface StepDetail extends Step {

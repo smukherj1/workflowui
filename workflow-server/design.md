@@ -97,7 +97,7 @@ All routes are served on `:3001`.
 | POST   | `/api/workflows`                                   | `routes/workflows.ts` | Upload workflow JSON, returns `{ workflowId, viewUrl }`       |
 | GET    | `/api/workflows/:id`                               | `routes/workflows.ts` | Workflow detail (metadata, status, timestamps)                |
 | DELETE | `/api/workflows/:id`                               | `routes/workflows.ts` | Delete workflow and all associated steps/logs (204/404)       |
-| GET    | `/api/workflows/:id/steps?parentId=`               | `routes/steps.ts`     | Steps at hierarchy level with dependencies (cursor-paginated) |
+| GET    | `/api/workflows/:id/steps?parentId=`               | `routes/steps.ts`     | All steps at hierarchy level with dependencies (single response) |
 | GET    | `/api/workflows/:id/steps/:uuid`                   | `routes/steps.ts`     | Step detail with breadcrumbs                                  |
 | GET    | `/api/steps/:uuid`                                 | `routes/steps.ts`     | Step lookup by UUID (returns workflow ID and step detail)     |
 | GET    | `/api/workflows/:id/logs?stepPath=&limit=&cursor=` | `routes/logs.ts`      | Merged logs for a step scope (cursor-paginated)               |
@@ -137,8 +137,7 @@ All routes are served on `:3001`.
       "childCount": 0
     }
   ],
-  "dependencies": [{ "from": "step-1-uuid", "to": "step-2-uuid" }],
-  "nextCursor": "..."
+  "dependencies": [{ "from": "step-1-uuid", "to": "step-2-uuid" }]
 }
 ```
 
@@ -204,7 +203,7 @@ Returns the same step detail as above, plus the `workflowId` so the frontend can
 }
 ```
 
-Cursor for steps is `base64url(sort_order)`. Cursor for logs is `base64url(line_offset)`.
+Cursor for logs is `base64url(line_offset)`.
 
 ---
 
@@ -214,7 +213,7 @@ Cursor for steps is `base64url(sort_order)`. Cursor for logs is `base64url(line_
 
 1. **Size check** — reject if `Content-Length` > 60 MB
 2. **Zod schema validation** — validates structure, field types, and metadata shape
-3. **Structural limits** — walk tree: max 1M steps/level, max 100 deps/step, max 10 MB logs/leaf, max 50 MB total logs, max hierarchy depth 10
+3. **Structural limits** — walk tree: max 10,000 steps/level, max 100 deps/step, max 10 MB logs/leaf, max 50 MB total logs, max hierarchy depth 10
 4. **DAG validation** — DFS at each hierarchy level to detect cycles in `dependsOn` references
 5. **DB insert** — single transaction: insert workflow row; bulk-insert steps in two passes (pass 1: `unnest()` batches of 1000 to get UUIDs; pass 2: batch `UPDATE` to set `parent_step_id`); bulk-insert dependencies and logs via `unnest()` batches of 1000 (each row includes `workflow_id` for direct cascade)
 6. **Return** — `201 { workflowId, viewUrl }` or `400 { error, details }`

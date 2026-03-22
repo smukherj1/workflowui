@@ -2,7 +2,7 @@
 
 ## Context
 
-The workflowui project needs a technical design to implement the PRD at `/PRD.md`. The system lets users upload a JSON execution trace of a CI/CD workflow, then visualize the step hierarchy as a DAG, inspect step metadata, and view merged/scoped logs. The design must handle up to 1M steps per hierarchy level and 50MB of logs per workflow with 7-day retention.
+The workflowui project needs a technical design to implement the PRD at `/PRD.md`. The system lets users upload a JSON execution trace of a CI/CD workflow, then visualize the step hierarchy as a DAG, inspect step metadata, and view merged/scoped logs. The design must handle up to 10,000 steps per hierarchy level and 50MB of logs per workflow with 7-day retention.
 
 ---
 

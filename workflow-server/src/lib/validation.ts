@@ -33,7 +33,7 @@ export const workflowSchema = z.object({
 
 // ── Structural + DAG validation ──────────────────────────────────────────────
 
-const MAX_STEPS_PER_LEVEL = 1_000_000;
+const MAX_STEPS_PER_LEVEL = 10_000;
 const MAX_DEPS_PER_STEP = 100;
 const MAX_LOG_BYTES_PER_LEAF = 10 * 1024 * 1024;
 const MAX_TOTAL_LOG_BYTES = 50 * 1024 * 1024;

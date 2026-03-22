@@ -1,6 +1,6 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import { eq, and, isNull, sql, like, or, gte } from "drizzle-orm";
+import { eq, and, isNull, sql, like, or } from "drizzle-orm";
 import { workflows, steps, stepDependencies, stepLogs } from "./schema.js";
 import type { WorkflowInput, FlatStep } from "./types.js";
 import type { StepInput } from "./types.js";
@@ -248,48 +248,31 @@ export async function deleteWorkflow(id: string): Promise<boolean> {
 export async function getStepsAtLevel(
   workflowId: string,
   parentId: string | null,
-  cursor: string | null,
-  limit: number,
 ) {
-  // Get steps at this level, applying cursor offset in the query itself
-  const cursorOffset = cursor
-    ? Number(Buffer.from(cursor, "base64url").toString())
-    : null;
-
   const conditions = parentId
     ? [eq(steps.workflowId, workflowId), eq(steps.parentStepId, parentId)]
     : [eq(steps.workflowId, workflowId), isNull(steps.parentStepId)];
-
-  if (cursorOffset !== null) {
-    conditions.push(gte(steps.sortOrder, cursorOffset));
-  }
 
   const stepsResult = await db
     .select()
     .from(steps)
     .where(and(...conditions))
-    .orderBy(steps.sortOrder)
-    .limit(limit + 1);
-
-  const hasMore = stepsResult.length > limit;
-  const page = stepsResult.slice(0, limit);
+    .orderBy(steps.sortOrder);
 
   // Get child counts
-  const stepIds = page.map((s) => s.id);
   const childCounts = new Map<string, number>();
-  if (stepIds.length > 0) {
-    for (const s of page) {
-      if (!s.isLeaf) {
-        const [{ count }] = await db
-          .select({ count: sql<number>`count(*)::int` })
-          .from(steps)
-          .where(eq(steps.parentStepId, s.id));
-        childCounts.set(s.id, count);
-      }
+  for (const s of stepsResult) {
+    if (!s.isLeaf) {
+      const [{ count }] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(steps)
+        .where(eq(steps.parentStepId, s.id));
+      childCounts.set(s.id, count);
     }
   }
 
-  // Get dependencies for this level
+  // Get all dependencies at this level
+  const stepIds = stepsResult.map((s) => s.id);
   const deps: { from: string; to: string }[] = [];
   if (stepIds.length > 0) {
     const depRows = await db
@@ -305,12 +288,8 @@ export async function getStepsAtLevel(
     }
   }
 
-  const nextCursor = hasMore
-    ? Buffer.from(String(page[page.length - 1].sortOrder + 1)).toString("base64url")
-    : null;
-
   return {
-    steps: page.map((s) => ({
+    steps: stepsResult.map((s) => ({
       uuid: s.id,
       stepId: s.stepId,
       name: s.name,
@@ -323,7 +302,6 @@ export async function getStepsAtLevel(
       childCount: childCounts.get(s.id) ?? 0,
     })),
     dependencies: deps,
-    nextCursor,
   };
 }
 

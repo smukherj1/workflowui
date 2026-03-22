@@ -778,10 +778,10 @@ describe("[16] Step Nodes Show Elapsed Time", () => {
   );
 });
 
-// ── [17] Large Workflow Grid: Server-Side Pagination ─────────────────────────
+// ── [17] Large Workflow Grid: Client-Side Pagination ─────────────────────────
 
-describe("[17] Large Workflow Grid: Server-Side Pagination", () => {
-  test("4000 Checkout sub-steps are accessible via page navigation", async () => {
+describe("[17] Large Workflow Grid: Client-Side Pagination", () => {
+  test("4000 Checkout sub-steps are accessible via client-side page navigation", async () => {
     const result = await uploadFixture("large-linear.json");
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
@@ -794,7 +794,7 @@ describe("[17] Large Workflow Grid: Server-Side Pagination", () => {
       await page.getByText("Checkout").first().click();
       await page.waitForURL(/\/steps\//, { timeout: 10_000 });
 
-      // Page 1 loads automatically (steps 0–999) — verify a step from page 1 is visible
+      // All 4000 steps are loaded upfront; page 1 shows steps 0–999
       await page
         .getByText("Checkout Step 0")
         .first()
@@ -804,13 +804,20 @@ describe("[17] Large Workflow Grid: Server-Side Pagination", () => {
         "step from page 1 is visible",
       ).toBe(true);
 
-      // "Checkout Step 1000" is on page 2 — click Next to fetch and navigate to it
+      // Verify page indicator shows exact count "Page 1 of 4"
+      await page.getByText("Page 1 of 4").first().waitFor({ timeout: 10_000 });
+      expect(
+        await page.getByText("Page 1 of 4").first().isVisible(),
+        "exact page count shown",
+      ).toBe(true);
+
+      // Click Next to navigate to page 2 (steps 1000–1999) — no network request
       const nextButton = page.getByRole("button", { name: /next/i });
       await nextButton.click();
       await page
         .getByText("Checkout Step 1000")
         .first()
-        .waitFor({ timeout: 30_000 });
+        .waitFor({ timeout: 10_000 });
       expect(
         await page.getByText("Checkout Step 1000").first().isVisible(),
         "step from page 2 is visible after clicking Next",
@@ -821,7 +828,7 @@ describe("[17] Large Workflow Grid: Server-Side Pagination", () => {
       await page
         .getByText("Checkout Step 2000")
         .first()
-        .waitFor({ timeout: 30_000 });
+        .waitFor({ timeout: 10_000 });
       expect(
         await page.getByText("Checkout Step 2000").first().isVisible(),
         "step from page 3 is visible",
@@ -832,7 +839,7 @@ describe("[17] Large Workflow Grid: Server-Side Pagination", () => {
       await page
         .getByText("Checkout Step 3999")
         .first()
-        .waitFor({ timeout: 30_000 });
+        .waitFor({ timeout: 10_000 });
       expect(
         await page.getByText("Checkout Step 3999").first().isVisible(),
         "last step (index 3999) is visible on page 4",
@@ -900,6 +907,75 @@ describe("[18] Workflow View: View Logs Shows Merged Logs for All Steps", () => 
       }
     },
     TEST_TIMEOUT,
+  );
+});
+
+// ── [20] Status Filter Resets When Leaving Grid Mode ─────────────────────────
+
+describe("[20] Status Filter Resets When Leaving Grid Mode", () => {
+  test(
+    "filter applied in grid mode is cleared when navigating to a DAG-mode level",
+    async () => {
+      const result = await uploadFixture("large-linear.json");
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(`${UI_BASE}${viewPath(result.viewUrl)}`);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        // Top level has 3 steps (DAG mode) — navigate into Checkout (4000 sub-steps → grid mode)
+        await page.getByText("Checkout").first().waitFor({ timeout: 10_000 });
+        await page.getByText("Checkout").first().click();
+        await page.waitForURL(/\/steps\//, { timeout: 10_000 });
+
+        // Wait for grid mode: status filter bar should be visible
+        await page
+          .getByText("Filter:")
+          .first()
+          .waitFor({ timeout: 30_000 });
+
+        // Apply the "failed" filter — clicking "failed" label when filter is empty adds it
+        await page.getByText("failed").first().click();
+
+        // Confirm filter is active: only failed steps visible on page 1
+        await page
+          .getByText("Checkout Step 1003")
+          .first()
+          .waitFor({ timeout: 10_000 });
+
+        // Navigate back to the top-level workflow view via the breadcrumb link
+        const breadcrumb = page.locator('[data-testid="breadcrumb-nav"]');
+        const workflowLink = breadcrumb
+          .locator("a")
+          .filter({ hasText: "large-linear-pipeline" });
+        await workflowLink.click();
+        await page.waitForURL(/\/workflows\/[^/]+$/, { timeout: 10_000 });
+
+        // All 3 top-level steps (Checkout, Build, Test) are "passed".
+        // If the filter persists, they are hidden and the DAG shows nothing.
+        // The correct behavior is for the filter to be reset when leaving grid mode.
+        for (const stepName of ["Checkout", "Build", "Test"]) {
+          await page
+            .getByText(stepName)
+            .first()
+            .waitFor({ timeout: 10_000 });
+          expect(
+            await page.getByText(stepName).first().isVisible(),
+            `top-level step "${stepName}" should be visible after filter reset`,
+          ).toBe(true);
+        }
+
+        // Status filter bar should not be visible (DAG mode at top level)
+        expect(
+          await page.getByText("Filter:").count(),
+          "filter bar should be hidden in DAG mode",
+        ).toBe(0);
+      } finally {
+        await ctx.close();
+        await deleteWorkflow(result.workflowId);
+      }
+    },
+    60_000,
   );
 });
 

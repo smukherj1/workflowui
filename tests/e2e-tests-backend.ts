@@ -486,8 +486,7 @@ describe("large-linear.json", () => {
     }
   });
 
-  // Helper: fetch ALL child steps of a top-level step by its stepId label,
-  // paginating through cursor pages (default page size = 1000).
+  // Helper: fetch all child steps of a top-level step by its stepId label.
   async function getAllChildSteps(
     parentStepId: string,
   ): Promise<Record<string, unknown>[]> {
@@ -499,19 +498,11 @@ describe("large-linear.json", () => {
     const parent = topSteps.find((s) => s.stepId === parentStepId);
     expect(parent, `top-level step "${parentStepId}" not found`).toBeDefined();
 
-    const all: Record<string, unknown>[] = [];
-    let cursor: string | null = null;
-    do {
-      const url = cursor
-        ? `/api/workflows/${workflowId}/steps?parentId=${parent!.uuid}&cursor=${cursor}`
-        : `/api/workflows/${workflowId}/steps?parentId=${parent!.uuid}`;
-      const { json } = await get(url);
-      const body = json as Record<string, unknown>;
-      all.push(...(body.steps as Record<string, unknown>[]));
-      cursor = (body.nextCursor as string | null) ?? null;
-    } while (cursor);
-
-    return all;
+    const { json } = await get(
+      `/api/workflows/${workflowId}/steps?parentId=${parent!.uuid}`,
+    );
+    const body = json as Record<string, unknown>;
+    return body.steps as Record<string, unknown>[];
   }
 
   // ── checkout (4000 substeps) ──────────────────────────────────────────────

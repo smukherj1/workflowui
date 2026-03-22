@@ -64,11 +64,9 @@ export async function getWorkflow(id: string): Promise<WorkflowDetail> {
 export async function getSteps(
   workflowId: string,
   parentId?: string,
-  cursor?: string,
 ): Promise<StepsResponse> {
   const params = new URLSearchParams();
   if (parentId) params.set("parentId", parentId);
-  if (cursor) params.set("cursor", cursor);
   const res = await fetch(
     `${API_BASE}/workflows/${workflowId}/steps?${params}`,
   );

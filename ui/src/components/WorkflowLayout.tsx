@@ -29,6 +29,7 @@ export default function WorkflowLayout() {
   });
 
   const stepBreadcrumbs = useWorkflowStore((s) => s.stepBreadcrumbs);
+  const isGridMode = useWorkflowStore((s) => s.isGridMode);
   const isAtWorkflowLevel = stepBreadcrumbs.length === 0;
 
   if (isLoading) {
@@ -124,7 +125,7 @@ export default function WorkflowLayout() {
           </span>
         ))}
       </nav>
-      <StatusFilterBar />
+      {isGridMode && <StatusFilterBar />}
       <div style={{ flex: 1, overflow: "auto", position: "relative" }}>
         <Outlet context={{ workflow } satisfies LayoutContext} />
       </div>

@@ -15,7 +15,7 @@ The frontend is a single-page application that lets users upload workflow JSON f
 | React Flow v11               | DAG canvas with pan/zoom, custom nodes, and edge styling     |
 | dagre                        | Automatic DAG layout (topological top-to-bottom)             |
 | Zustand                      | Lightweight global UI state                                  |
-| TanStack Query v5            | Data fetching, caching, cursor-based pagination              |
+| TanStack Query v5            | Data fetching and caching                                    |
 
 Styling uses inline styles throughout. No CSS framework is used.
 
@@ -104,6 +104,7 @@ Zustand store holding all transient UI state:
 
 - **Step filter**: `statusFilter`, `setStatusFilter`
 - **View mode**: `viewMode` (`"dagre"` | `"grid"`), `setViewMode`
+- **Grid mode flag**: `isGridMode`, `setIsGridMode` — set by `GraphContainer`; read by `WorkflowLayout` to show/hide `StatusFilterBar`. Calling `setIsGridMode(false)` also resets `statusFilter` to `[]`, preventing a filter set in grid mode from silently persisting when the user navigates to a DAG-mode level where the filter bar is hidden.
 - **Breadcrumbs**: `stepBreadcrumbs` (array of `{ uuid, name }`), `setStepBreadcrumbs`
 
 TanStack Query owns all server state. Zustand holds only UI state that isn't derivable from the URL or server responses.
@@ -148,7 +149,7 @@ Parent route wrapper for all `/workflows/*` routes. Fetches workflow detail once
 
 1. `WorkflowHeader` with the fetched workflow data
 2. A unified breadcrumb `<nav>` that reads `stepBreadcrumbs` from the Zustand store and renders the full workflow-to-step path. When `stepBreadcrumbs` is empty (at workflow level), the workflow name is shown as highlighted plain text. Otherwise the workflow name is a `<Link>` back to the top level, followed by each step crumb — all but the last as links, the last as highlighted text.
-3. `StatusFilterBar`
+3. `StatusFilterBar` (only when `isGridMode === true`)
 4. A `<div>` containing the `<Outlet>` (either `WorkflowView` or `StepView`)
 
 `WorkflowLayout` passes `{ workflow }` to child routes via React Router's outlet context.
@@ -185,6 +186,8 @@ Used in both `WorkflowView` (for workflow metadata) and `StepView` (for step met
 
 Row of five labeled checkboxes (`passed`, `failed`, `running`, `skipped`, `cancelled`), each colored with its status color. Toggling a checkbox updates `statusFilter` in the Zustand store. An empty `statusFilter` array means "show all". A "Clear" button appears when any filter is active.
 
+Only shown when the current level is in grid mode (`isGridMode === true` in the store). In DAG mode (≤50 steps), the filter bar is hidden — status is visible at a glance via colored badges on each node.
+
 ### `StatusBadge` — `src/components/StatusBadge.tsx`
 
 A colored circle (`border-radius: 50%`). Status-to-color mapping:
@@ -201,13 +204,13 @@ Used in `StepNode`, `StepCard`, `LeafDetail`, `InfoCard`, and `WorkflowHeader`.
 
 ### `GraphContainer` — `src/components/GraphContainer.tsx`
 
-Fetches steps for the current hierarchy level using `useInfiniteQuery(['steps', workflowId, parentId])` with cursor-based pagination.
+Fetches all steps for the current hierarchy level in a single request using `useQuery(['steps', workflowId, parentId])`. No cursor or pagination at the server level.
 
-Rendering decision after the first page loads:
-- If total step count > `GRID_THRESHOLD` **or** `viewMode === 'grid'`: renders `GridFallback` in server-paginated mode (one server page at a time, on-demand fetching)
-- Otherwise: auto-fetches all remaining pages and renders `GraphView` with the filtered steps and their dependency edges (edges are filtered to only connect steps that passed the status filter)
+Rendering decision after data loads:
+- If total step count > `GRID_THRESHOLD` **or** `viewMode === 'grid'`: renders `GridFallback`
+- Otherwise: renders `GraphView` with the filtered steps and their dependency edges
 
-`GraphView` needs all nodes upfront for dagre layout, so auto-fetching continues until all pages arrive. `GridFallback` only needs the first page to start rendering, so additional pages are fetched on demand as the user navigates forward.
+Status filtering is applied client-side via `useMemo` on the fetched steps array. `GraphContainer` calls `setIsGridMode(true/false)` in the store so `WorkflowLayout` can show/hide the `StatusFilterBar`.
 
 Displays a **"View Logs"** link that navigates to `/workflows/:workflowId/logs?stepPath=<currentPath>` to view merged logs for all steps at the current level.
 
@@ -231,9 +234,9 @@ Click behavior (implemented in the node's `onClick`):
 
 ### `GridFallback` — `src/components/GridFallback.tsx`
 
-Used when a level has more than `GRID_THRESHOLD` steps or the user selects grid view. Receives pages from `GraphContainer`'s `useInfiniteQuery`. Displays one server page (up to 1000 steps) at a time with Previous/Next navigation. The Next button fetches the next server page on demand when the user advances past the last loaded page. Search and status filters apply client-side to the displayed page. Steps within each page are sorted by status priority (failed → running → passed → skipped → cancelled) so failures surface first.
+Used when a level has more than `GRID_THRESHOLD` steps or the user selects grid view. Receives a flat `steps: Step[]` array (already filtered by status from `GraphContainer`). Paginates client-side with `PAGE_SIZE = 1000`.
 
-The page indicator shows `Page X of Y+` where the `+` suffix appears when more pages exist on the server. Previously loaded pages are cached by `useInfiniteQuery` and render instantly when the user navigates back.
+The page indicator shows `Page X of Y` with an exact total (no `+` suffix). A local text search filter (name substring match) is applied client-side. Resets to page 1 when the steps array changes (e.g., filter toggled). Previous/Next navigation controls page through the client-side pages instantly — no network requests.
 
 ### `StepCard` — `src/components/StepCard.tsx`
 
@@ -313,9 +316,9 @@ The `WorkflowHeader` includes a home link that navigates to `/` from any workflo
 
 ## Large Step Count Strategy
 
-When a hierarchy level exceeds 10,000 steps, `GraphContainer` switches from `GraphView` to `GridFallback`. This avoids the quadratic cost of dagre layout and React Flow's node rendering at that scale.
+When a hierarchy level exceeds 50 steps (`GRID_THRESHOLD`), `GraphContainer` switches from `GraphView` to `GridFallback`. This avoids the quadratic cost of dagre layout and React Flow's node rendering at that scale. The 10,000 step cap is enforced at upload validation.
 
-`GridFallback` renders one page of steps at a time with prev/next navigation, sorts steps by failure priority so problems are immediately visible, filters by name search and status checkboxes, and renders in a CSS auto-fill grid. Each `StepCard` is clickable with the same behavior as `StepNode`.
+`GridFallback` receives all steps upfront (already filtered by status) and paginates them client-side with `PAGE_SIZE = 1000`. It filters by name search and renders in a CSS auto-fill grid. Each `StepCard` is clickable with the same behavior as `StepNode`.
 
 ---
 

@@ -1,5 +1,5 @@
-import { useInfiniteQuery } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { getSteps } from "../lib/api";
 import { useWorkflowStore } from "../store/workflowStore";
@@ -21,38 +21,26 @@ export default function GraphContainer({
   parentId,
   parentPath,
 }: Props) {
-  const { statusFilter, viewMode } = useWorkflowStore();
+  const { statusFilter, viewMode, setIsGridMode } = useWorkflowStore();
 
-  const {
-    data,
-    isLoading,
-    isFetchingNextPage,
-    isError,
-    refetch,
-    hasNextPage,
-    fetchNextPage,
-  } = useInfiniteQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["steps", workflowId, parentId ?? null],
-    queryFn: ({ pageParam }) =>
-      getSteps(workflowId, parentId, pageParam as string | undefined),
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    queryFn: () => getSteps(workflowId, parentId),
   });
 
-  const allSteps: Step[] = data?.pages.flatMap((p) => p.steps) ?? [];
-  const allDeps: Dependency[] =
-    data?.pages.flatMap((p) => p.dependencies) ?? [];
+  const allSteps: Step[] = data?.steps ?? [];
+  const allDeps: Dependency[] = data?.dependencies ?? [];
 
-  // Use grid mode if step count exceeds threshold or user selected grid view
   const useGrid = allSteps.length > GRID_THRESHOLD || viewMode === "grid";
-  // Graph mode needs all pages for dagre layout; grid mode fetches on demand
-  const needsAllPages = !useGrid;
 
   useEffect(() => {
-    if (needsAllPages && hasNextPage && !isFetchingNextPage) {
-      fetchNextPage();
-    }
-  }, [needsAllPages, hasNextPage, isFetchingNextPage, fetchNextPage]);
+    setIsGridMode(useGrid);
+  }, [useGrid, setIsGridMode]);
+
+  const filteredSteps = useMemo(() => {
+    if (statusFilter.length === 0) return allSteps;
+    return allSteps.filter((s) => statusFilter.includes(s.status));
+  }, [allSteps, statusFilter]);
 
   if (isLoading) {
     return (
@@ -66,23 +54,6 @@ export default function GraphContainer({
         }}
       >
         Loading steps...
-      </div>
-    );
-  }
-
-  // In graph mode, wait for all pages before rendering
-  if (needsAllPages && hasNextPage) {
-    return (
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flex: 1,
-          color: "#64748b",
-        }}
-      >
-        Loading more steps...
       </div>
     );
   }
@@ -117,11 +88,6 @@ export default function GraphContainer({
       </div>
     );
   }
-
-  const filteredSteps =
-    statusFilter.length === 0
-      ? allSteps
-      : allSteps.filter((s) => statusFilter.includes(s.status));
 
   // Show empty state only in graph mode (grid mode handles its own empty state)
   if (!useGrid && filteredSteps.length === 0) {
@@ -176,11 +142,8 @@ export default function GraphContainer({
       <div style={{ flex: 1, minHeight: 0 }}>
         {useGrid ? (
           <GridFallback
+            steps={filteredSteps}
             parentPath={parentPath}
-            allPages={data?.pages ?? []}
-            hasNextPage={!!hasNextPage}
-            fetchNextPage={fetchNextPage}
-            isFetchingNextPage={isFetchingNextPage}
           />
         ) : (
           <GraphView
