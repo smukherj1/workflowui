@@ -181,7 +181,7 @@ describe("simple-linear.json", () => {
     expect(lines.length).toBeGreaterThanOrEqual(2);
 
     const hasCloneLog = lines.some((l) =>
-      (l.line as string).includes("Cloning into repo..."),
+      (l.content as string).includes("Cloning into repo..."),
     );
     expect(hasCloneLog).toBe(true);
 
@@ -236,7 +236,7 @@ describe("parallel-diamond.json", () => {
     expect(lines.length).toBeGreaterThanOrEqual(1);
 
     const hasSetupLog = lines.some((l) =>
-      (l.line as string).includes("Environment setup complete."),
+      (l.content as string).includes("Environment setup complete."),
     );
     expect(hasSetupLog).toBe(true);
   });
@@ -328,7 +328,7 @@ describe("nested-hierarchy.json", () => {
     expect(lines.length).toBeGreaterThanOrEqual(2);
 
     const hasBuildLog = lines.some((l) =>
-      (l.line as string).includes("Building React app..."),
+      (l.content as string).includes("Building React app..."),
     );
     expect(hasBuildLog).toBe(true);
 
@@ -392,7 +392,7 @@ describe("mixed-status.json", () => {
     expect(lines.length).toBeGreaterThanOrEqual(1);
 
     const hasSetupLog = lines.some((l) =>
-      (l.line as string).includes("Setup complete."),
+      (l.content as string).includes("Setup complete."),
     );
     expect(hasSetupLog).toBe(true);
   });

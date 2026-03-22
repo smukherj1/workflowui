@@ -84,7 +84,9 @@ The UI displays only the metadata fields that are present — omitted fields are
         },
         "status": "passed",
         "dependsOn": [],
-        "logs": "Initializing...\n",
+        "logs": [
+          { "timestamp": "2026-03-08T10:00:05Z", "content": "Initializing..." }
+        ],
         "steps": []
       }
     ]
@@ -95,7 +97,7 @@ The UI displays only the metadata fields that are present — omitted fields are
 - `metadata`: standardized metadata object (see above); `name` is required, all other fields optional
 - `status`: `"passed"` | `"failed"` | `"running"` | `"skipped"` | `"cancelled"`
 - `dependsOn`: references sibling step IDs only (same hierarchy level)
-- `logs`: string for leaf steps (no sub-steps), `null` for parent steps
+- `logs`: array of `LogEntry` objects for leaf steps (no sub-steps), `null` for parent steps. Each `LogEntry` has `content` (string, required) and `timestamp` (RFC 3339 string, optional).
 - `steps`: recursive sub-steps array
 
 ---

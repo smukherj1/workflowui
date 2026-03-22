@@ -17,7 +17,9 @@
         },
         "status": "passed",
         "dependsOn": [],
-        "logs": "Setup complete.\n",
+        "logs": [
+          { "timestamp": "2026-03-08T10:00:05Z", "content": "Setup complete." }
+        ],
         "steps": []
       },
       {
@@ -29,7 +31,11 @@
         },
         "status": "failed",
         "dependsOn": ["setup"],
-        "logs": "Running tests...\nERROR: NullPointerException in test_foo\nFailed: 1, Passed: 41\n",
+        "logs": [
+          { "timestamp": "2026-03-08T10:00:05Z", "content": "Running tests..." },
+          { "timestamp": "2026-03-08T10:00:20Z", "content": "ERROR: NullPointerException in test_foo" },
+          { "timestamp": "2026-03-08T10:00:30Z", "content": "Failed: 1, Passed: 41" }
+        ],
         "steps": []
       },
       {
@@ -41,7 +47,9 @@
         },
         "status": "skipped",
         "dependsOn": ["tests"],
-        "logs": "Skipped due to test failure.\n",
+        "logs": [
+          { "timestamp": "2026-03-08T10:00:30Z", "content": "Skipped due to test failure." }
+        ],
         "steps": []
       }
     ]

@@ -6,12 +6,17 @@ export interface Metadata {
   endTime?: string;
 }
 
+export interface LogEntry {
+  content: string;
+  timestamp?: string;
+}
+
 export interface StepInput {
   id: string;
   metadata: Metadata;
   status: string;
   dependsOn: string[];
-  logs: string | null;
+  logs: LogEntry[] | null;
   steps: StepInput[];
 }
 
@@ -37,6 +42,6 @@ export interface FlatStep {
   isLeaf: boolean;
   depth: number;
   sortOrder: number;
-  logs: string | null;
+  logs: LogEntry[] | null;
   dependsOn: string[]; // sibling step IDs
 }

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams, useSearchParams, Link, useNavigate } from "react-router-dom";
+import { useParams, useSearchParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getLogs, getWorkflow } from "../lib/api";
 import LogLineComponent from "../components/LogLine";
@@ -7,7 +7,6 @@ import LogLineComponent from "../components/LogLine";
 export default function LogsPage() {
   const { workflowId } = useParams<{ workflowId: string }>();
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
 
   const stepPath = searchParams.get("stepPath") ?? "/";
   const [cursor, setCursor] = useState<string | undefined>(undefined);
@@ -30,8 +29,9 @@ export default function LogsPage() {
 
   const lines = data?.lines ?? [];
   const filteredLines = filter
-    ? lines.filter((l) => l.line.toLowerCase().includes(filter.toLowerCase()))
+    ? lines.filter((l) => l.content.toLowerCase().includes(filter.toLowerCase()))
     : lines;
+  const showTimestamp = lines.some((l) => l.timestamp !== null);
 
   const pageIndex = prevCursors.length;
 
@@ -124,7 +124,7 @@ export default function LogsPage() {
           </div>
         )}
         {filteredLines.map((line, i) => (
-          <LogLineComponent key={`${pageIndex}-${i}`} line={line} />
+          <LogLineComponent key={`${pageIndex}-${i}`} line={line} showTimestamp={showTimestamp} />
         ))}
       </div>
 

@@ -13,13 +13,18 @@ const metadataSchema = z.object({
 
 const stepStatuses = ["passed", "failed", "running", "skipped", "cancelled"] as const;
 
+const logEntrySchema = z.object({
+  content: z.string(),
+  timestamp: z.string().optional(),
+});
+
 const stepSchema: z.ZodType<StepInput> = z.lazy(() =>
   z.object({
     id: z.string().min(1),
     metadata: metadataSchema,
     status: z.enum(stepStatuses),
     dependsOn: z.array(z.string()).default([]),
-    logs: z.string().nullable().default(null),
+    logs: z.array(logEntrySchema).nullable().default(null),
     steps: z.array(stepSchema).default([]),
   }),
 );
@@ -92,7 +97,10 @@ function validateStepsRecursive(
       return `Step "${step.id}" exceeds ${MAX_DEPS_PER_STEP} dependencies`;
 
     if (step.logs !== null) {
-      const bytes = Buffer.byteLength(step.logs, "utf8");
+      const bytes = step.logs.reduce(
+        (sum, entry) => sum + Buffer.byteLength(entry.content, "utf8"),
+        0,
+      );
       if (bytes > MAX_LOG_BYTES_PER_LEAF)
         return `Step "${step.id}" log exceeds 10MB`;
       ctx.totalLogBytes += bytes;

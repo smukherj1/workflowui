@@ -3,6 +3,7 @@ import {
   uuid,
   text,
   integer,
+  serial,
   boolean,
   timestamp,
   index,
@@ -77,11 +78,17 @@ export const stepDependencies = pgTable(
 export const stepLogs = pgTable(
   "step_logs",
   {
+    id: serial("id").primaryKey(),
     workflowId: uuid("workflow_id")
       .notNull()
       .references(() => workflows.id, { onDelete: "cascade" }),
-    stepUuid: uuid("step_uuid").primaryKey(),
-    logText: text("log_text").notNull(),
+    stepUuid: uuid("step_uuid").notNull(),
+    lineNumber: integer("line_number").notNull(),
+    content: text("content").notNull(),
+    timestamp: timestamp("timestamp", { withTimezone: true }),
   },
-  (table) => [index("step_logs_by_workflow_idx").on(table.workflowId)],
+  (table) => [
+    index("step_logs_by_step_idx").on(table.stepUuid, table.lineNumber),
+    index("step_logs_by_workflow_idx").on(table.workflowId),
+  ],
 );

@@ -44,7 +44,7 @@ function flattenSteps(
       isLeaf,
       depth,
       sortOrder: i,
-      logs: isLeaf ? (s.logs ?? "") : null,
+      logs: isLeaf ? (s.logs ?? null) : null,
       dependsOn: s.dependsOn,
     });
 
@@ -172,7 +172,16 @@ export async function insertWorkflow(
         }
       }
       if (s.isLeaf && s.logs !== null) {
-        logRows.push({ workflowId: wfId, stepUuid, logText: s.logs });
+        for (let i = 0; i < s.logs.length; i++) {
+          const entry = s.logs[i];
+          logRows.push({
+            workflowId: wfId,
+            stepUuid,
+            lineNumber: i,
+            content: entry.content,
+            timestamp: entry.timestamp ? new Date(entry.timestamp) : null,
+          });
+        }
       }
     }
 
@@ -339,17 +348,18 @@ export async function getLogs(
   const exactPath = base;
   const prefixPath = base ? `${base}/%` : "/%";
 
-  const leafSteps = await db
+  const logEntries = await db
     .select({
-      id: steps.id,
+      content: stepLogs.content,
+      timestamp: stepLogs.timestamp,
       stepId: steps.stepId,
-      hierarchyPath: steps.hierarchyPath,
+      stepPath: steps.hierarchyPath,
       depth: steps.depth,
-      logText: stepLogs.logText,
+      lineNumber: stepLogs.lineNumber,
       sortOrder: steps.sortOrder,
     })
-    .from(steps)
-    .innerJoin(stepLogs, eq(stepLogs.stepUuid, steps.id))
+    .from(stepLogs)
+    .innerJoin(steps, eq(steps.id, stepLogs.stepUuid))
     .where(
       and(
         eq(steps.workflowId, workflowId),
@@ -357,33 +367,27 @@ export async function getLogs(
         or(eq(steps.hierarchyPath, exactPath), like(steps.hierarchyPath, prefixPath)),
       ),
     )
-    .orderBy(steps.sortOrder);
+    .orderBy(steps.sortOrder, stepLogs.lineNumber);
 
   // Build flat lines array
   const allLines: {
-    timestampNs: string;
-    line: string;
+    content: string;
+    timestamp: string | null;
     stepPath: string;
     stepId: string;
     depth: string;
   }[] = [];
 
-  for (const s of leafSteps) {
-    const lines = s.logText.split("\n");
-    for (const line of lines) {
-      if (line === "" && lines[lines.length - 1] === "" && line === lines[lines.length - 1])
-        continue;
-      allLines.push({
-        timestampNs: "0",
-        line,
-        stepPath: s.hierarchyPath,
-        stepId: s.stepId,
-        depth: String(s.depth),
-      });
-    }
+  for (const e of logEntries) {
+    allLines.push({
+      content: e.content,
+      timestamp: e.timestamp ? e.timestamp.toISOString() : null,
+      stepPath: e.stepPath,
+      stepId: e.stepId,
+      depth: String(e.depth),
+    });
   }
 
-  // Remove trailing empty line from each step's log split
   // Apply cursor
   let startIdx = 0;
   if (cursor) {

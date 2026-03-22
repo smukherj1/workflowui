@@ -32,23 +32,23 @@ The Drizzle client is initialized in `src/lib/db.ts` using `drizzle(pool)` with 
 
 ## Log Storage & Query Strategy
 
-Logs are inserted into `step_logs` within the same transaction as the workflow upload — no separate push step. Each leaf step's full log string is stored as a single `log_text` row.
+Logs are inserted into `step_logs` within the same transaction as the workflow upload — no separate push step. Each log entry is stored as one row with `line_number`, `content`, and optional `timestamp`.
 
 **Query pattern** (`GET /api/workflows/:id/logs?stepPath=`):
 
 ```sql
-SELECT s.step_id, s.hierarchy_path, s.depth, sl.log_text
-FROM steps s
-JOIN step_logs sl ON sl.step_uuid = s.id
+SELECT sl.content, sl.timestamp, s.step_id, s.hierarchy_path, s.depth, sl.line_number
+FROM step_logs sl
+JOIN steps s ON s.id = sl.step_uuid
 WHERE s.workflow_id = $1
   AND s.is_leaf = true
   AND (s.hierarchy_path = $2 OR s.hierarchy_path LIKE $3)
-ORDER BY s.sort_order
+ORDER BY s.sort_order, sl.line_number
 ```
 
 Where `$2` is the exact `stepPath` and `$3` is `stepPath + '/%'`. This covers both leaf lookup (exact match) and merged parent view (prefix match).
 
-Results are split into individual lines in the application layer and returned with cursor-based pagination (line offset encoded as base64url).
+Results are returned directly from DB rows with cursor-based pagination (row offset encoded as base64url).
 
 ---
 
@@ -192,8 +192,8 @@ Returns the same step detail as above, plus the `workflowId` so the frontend can
 {
   "lines": [
     {
-      "timestampNs": "0",
-      "line": "Building React app...",
+      "content": "Building React app...",
+      "timestamp": "2026-03-08T10:00:01Z",
       "stepPath": "/ci/build-frontend",
       "stepId": "build-frontend",
       "depth": "2"
@@ -203,7 +203,7 @@ Returns the same step detail as above, plus the `workflowId` so the frontend can
 }
 ```
 
-Cursor for logs is `base64url(line_offset)`.
+Cursor for logs is `base64url(row_offset)`.
 
 ---
 

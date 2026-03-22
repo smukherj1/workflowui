@@ -28,7 +28,10 @@
             },
             "status": "passed",
             "dependsOn": [],
-            "logs": "Building React app...\nvite build completed.\n",
+            "logs": [
+              { "timestamp": "2026-03-08T10:00:00Z", "content": "Building React app..." },
+              { "timestamp": "2026-03-08T10:01:00Z", "content": "vite build completed." }
+            ],
             "steps": []
           },
           {
@@ -40,7 +43,10 @@
             },
             "status": "passed",
             "dependsOn": [],
-            "logs": "Compiling TypeScript...\nBuild complete.\n",
+            "logs": [
+              { "timestamp": "2026-03-08T10:00:00Z", "content": "Compiling TypeScript..." },
+              { "timestamp": "2026-03-08T10:01:30Z", "content": "Build complete." }
+            ],
             "steps": []
           },
           {
@@ -63,7 +69,10 @@
                 },
                 "status": "passed",
                 "dependsOn": [],
-                "logs": "Testing /api/workflows...\nAll API tests passed.\n",
+                "logs": [
+                  { "timestamp": "2026-03-08T10:01:30Z", "content": "Testing /api/workflows..." },
+                  { "timestamp": "2026-03-08T10:02:00Z", "content": "All API tests passed." }
+                ],
                 "steps": []
               },
               {
@@ -75,7 +84,10 @@
                 },
                 "status": "passed",
                 "dependsOn": ["api-tests"],
-                "logs": "Running Playwright tests...\n10/10 tests passed.\n",
+                "logs": [
+                  { "timestamp": "2026-03-08T10:02:00Z", "content": "Running Playwright tests..." },
+                  { "timestamp": "2026-03-08T10:03:00Z", "content": "10/10 tests passed." }
+                ],
                 "steps": []
               }
             ]
@@ -91,7 +103,10 @@
         },
         "status": "passed",
         "dependsOn": ["ci"],
-        "logs": "Deploying to production...\nDeploy complete.\n",
+        "logs": [
+          { "timestamp": "2026-03-08T10:05:00Z", "content": "Deploying to production..." },
+          { "timestamp": "2026-03-08T10:05:30Z", "content": "Deploy complete." }
+        ],
         "steps": []
       }
     ]

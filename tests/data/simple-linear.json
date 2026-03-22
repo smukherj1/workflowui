@@ -17,7 +17,10 @@
         },
         "status": "passed",
         "dependsOn": [],
-        "logs": "Cloning into repo...\nChecked out abc123\n",
+        "logs": [
+          { "timestamp": "2026-03-08T10:00:00Z", "content": "Cloning into repo..." },
+          { "timestamp": "2026-03-08T10:00:01Z", "content": "Checked out abc123" }
+        ],
         "steps": []
       },
       {
@@ -29,7 +32,11 @@
         },
         "status": "passed",
         "dependsOn": ["checkout"],
-        "logs": "Installing dependencies...\nCompiling TypeScript...\nBuild succeeded.\n",
+        "logs": [
+          { "timestamp": "2026-03-08T10:00:02Z", "content": "Installing dependencies..." },
+          { "timestamp": "2026-03-08T10:00:10Z", "content": "Compiling TypeScript..." },
+          { "timestamp": "2026-03-08T10:00:29Z", "content": "Build succeeded." }
+        ],
         "steps": []
       },
       {
@@ -41,7 +48,10 @@
         },
         "status": "passed",
         "dependsOn": ["build"],
-        "logs": "Running 42 tests...\nAll tests passed.\n",
+        "logs": [
+          { "timestamp": "2026-03-08T10:00:30Z", "content": "Running 42 tests..." },
+          { "timestamp": "2026-03-08T10:01:00Z", "content": "All tests passed." }
+        ],
         "steps": []
       }
     ]

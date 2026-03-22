@@ -17,7 +17,9 @@
         },
         "status": "passed",
         "dependsOn": [],
-        "logs": "Environment setup complete.\n",
+        "logs": [
+          { "timestamp": "2026-03-08T10:00:05Z", "content": "Environment setup complete." }
+        ],
         "steps": []
       },
       {
@@ -29,7 +31,10 @@
         },
         "status": "passed",
         "dependsOn": ["setup"],
-        "logs": "Running unit tests...\nPassed: 100, Failed: 0\n",
+        "logs": [
+          { "timestamp": "2026-03-08T10:00:05Z", "content": "Running unit tests..." },
+          { "timestamp": "2026-03-08T10:00:30Z", "content": "Passed: 100, Failed: 0" }
+        ],
         "steps": []
       },
       {
@@ -41,7 +46,10 @@
         },
         "status": "failed",
         "dependsOn": ["setup"],
-        "logs": "Running eslint...\nFound 5 issues.\n",
+        "logs": [
+          { "timestamp": "2026-03-08T10:00:05Z", "content": "Running eslint..." },
+          { "timestamp": "2026-03-08T10:00:15Z", "content": "Found 5 issues." }
+        ],
         "steps": []
       },
       {
@@ -53,7 +61,10 @@
         },
         "status": "passed",
         "dependsOn": ["setup"],
-        "logs": "Running tsc --noEmit...\nType check passed.\n",
+        "logs": [
+          { "timestamp": "2026-03-08T10:00:05Z", "content": "Running tsc --noEmit..." },
+          { "timestamp": "2026-03-08T10:00:20Z", "content": "Type check passed." }
+        ],
         "steps": []
       },
       {
@@ -65,7 +76,10 @@
         },
         "status": "passed",
         "dependsOn": ["unit-tests", "lint", "type-check"],
-        "logs": "Publishing package v1.2.3...\nPublish successful.\n",
+        "logs": [
+          { "timestamp": "2026-03-08T10:00:30Z", "content": "Publishing package v1.2.3..." },
+          { "timestamp": "2026-03-08T10:00:45Z", "content": "Publish successful." }
+        ],
         "steps": []
       }
     ]

@@ -59,8 +59,8 @@ export interface StepLookupResponse extends StepDetailResponse {
 }
 
 export interface LogLine {
-  timestampNs: string;
-  line: string;
+  content: string;
+  timestamp: string | null;
   stepPath: string;
   stepId: string;
   depth: string;

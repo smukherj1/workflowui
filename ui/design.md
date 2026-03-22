@@ -272,7 +272,7 @@ The element has `data-testid="logs-page"` for test targeting.
 
 ### `LogLine` — `src/components/LogLine.tsx`
 
-Single log line with two parts: a step label (`[stepId]`) colored per-step using a cycling palette, and the log text. Renders in a monospace font with `white-space: pre-wrap` so multi-line content displays correctly.
+Single log line with up to three parts: an optional timestamp column (formatted in local time, monospace, dimmed), a step label (`[stepId]`) colored per-step using a cycling palette, and the log content. Renders in a monospace font with `white-space: pre-wrap` so multi-line content displays correctly. The timestamp column is only shown when at least one line in the current page has a non-null timestamp.
 
 ---
 

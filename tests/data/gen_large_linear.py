@@ -19,7 +19,10 @@ def make_substeps(prefix, count):
         },
         "status": status,
         "dependsOn": [f"{prefix}-{i-1}"] if i > 0 else [],
-        "logs": f"Running {prefix} step {i}...\nDone.\n",
+        "logs": [
+            {"timestamp": BASE_TIME, "content": f"Running {prefix} step {i}..."},
+            {"timestamp": BASE_TIME, "content": "Done."},
+        ],
         "steps": []
     })
   return steps

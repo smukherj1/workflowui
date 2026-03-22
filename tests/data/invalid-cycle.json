@@ -9,7 +9,7 @@
         "metadata": { "name": "Step A" },
         "status": "passed",
         "dependsOn": ["step-b"],
-        "logs": "Step A logs.\n",
+        "logs": [{ "content": "Step A logs." }],
         "steps": []
       },
       {
@@ -17,7 +17,7 @@
         "metadata": { "name": "Step B" },
         "status": "passed",
         "dependsOn": ["step-a"],
-        "logs": "Step B logs.\n",
+        "logs": [{ "content": "Step B logs." }],
         "steps": []
       }
     ]
