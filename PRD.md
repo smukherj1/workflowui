@@ -72,12 +72,21 @@ A web-based user interface designed to visualize, inspect, and debug CI/CD workf
 - Logs are displayed in a full-viewport area with monospace formatting.
 - The viewer shows one page of log lines at a time with navigation controls to move between pages, avoiding the performance issues of loading all logs into a single scrolling container.
 - A text filter allows narrowing down the displayed lines.
+- The log viewer provides breadcrumb navigation showing the full hierarchy path (workflow > ancestor steps > current step > Logs), matching the breadcrumb behavior in the workflow and step views. Each breadcrumb segment is a clickable link to that level.
 
 ### CUJ 6: Navigation
 
 - A persistent navigation element lets the user return to the home / landing page from any view.
 - The user can easily navigate back to the previous view using UI elements or browser history.
 - The user can navigate "up" the hierarchy if they are currently deep-diving at a level below the main workflow.
+- A quick-search / command palette (keyboard shortcut and clickable icon) is accessible from any view — workflow, step, logs, and landing page — allowing the user to search and jump to any workflow or step.
+
+### CUJ 7: Search
+
+- The user can search for workflows by name, URI, pin, or date range.
+- When viewing a workflow (from any point in the hierarchy, including the log viewer), the user can search for steps within that workflow by name, URI, pin, or hierarchy path.
+- Search results display the step's status, name, and hierarchy path. Clicking a result navigates directly to that step or workflow.
+- Search is available from the landing page (all workflows) and from within a workflow (steps scoped to that workflow, with an option to search all workflows).
 
 ## 5. Non-Functional Requirements
 

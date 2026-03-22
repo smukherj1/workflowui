@@ -192,7 +192,7 @@ For dev, the Vite dev server proxies `/api` requests to the Hono server.
 
 ## Future Work
 
-- Ability to search workflows and UI by name, URI, pin and date.
+- Ability to search workflows and Steps in the UI by name, URI, pin and date.
 - Incrementally upload a workflow.
 - Verify workflows are retained for up to 7 days.
 - Add Github workflows to build docker images for the ui and server.
