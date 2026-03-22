@@ -39,9 +39,9 @@
           "startTime": "2026-03-08T10:00:05Z",
           "endTime": "2026-03-08T10:00:15Z"
         },
-        "status": "passed",
+        "status": "failed",
         "dependsOn": ["setup"],
-        "logs": "Running eslint...\nNo issues found.\n",
+        "logs": "Running eslint...\nFound 5 issues.\n",
         "steps": []
       },
       {

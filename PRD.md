@@ -84,7 +84,7 @@ A web-based user interface designed to visualize, inspect, and debug CI/CD workf
 - An uploaded workflow is retained for at least 7 days.
 
 - Limits on the structure of a workflow:
-  - Each hierarchy level can have at most a 1 million steps.
+  - Each hierarchy level can have at most 10000 steps.
   - Each step can depend on at most a 100 other steps.
   - There can be at most 10 hierarchy levels.
   - The logs for a step with no sub-steps can be at most 10 MB.
