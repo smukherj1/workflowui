@@ -1,8 +1,9 @@
-import { Outlet, useParams, Link, useOutletContext } from "react-router-dom";
+import { Outlet, useParams, useOutletContext } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getWorkflow } from "../lib/api";
 import WorkflowHeader from "./WorkflowHeader";
 import StatusFilterBar from "./StatusFilterBar";
+import Breadcrumbs from "./Breadcrumbs";
 import { useWorkflowStore } from "../store/workflowStore";
 import type { WorkflowDetail } from "../lib/types";
 
@@ -82,49 +83,19 @@ export default function WorkflowLayout() {
       }}
     >
       <WorkflowHeader workflow={workflow} />
-      {/* Unified breadcrumb bar */}
-      <nav
+      <Breadcrumbs
         data-testid="breadcrumb-nav"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "0.25rem",
-          padding: "0.5rem 1.25rem",
-          background: "#0f172a",
-          borderBottom: "1px solid #1e293b",
-          fontSize: "0.85rem",
-          flexWrap: "wrap",
-        }}
-      >
-        {isAtWorkflowLevel ? (
-          <span style={{ color: "#e2e8f0" }}>{workflow.name}</span>
-        ) : (
-          <Link
-            to={`/workflows/${workflowId}`}
-            style={{ color: "#60a5fa", textDecoration: "none" }}
-          >
-            {workflow.name}
-          </Link>
-        )}
-        {stepBreadcrumbs.map((crumb, i) => (
-          <span
-            key={crumb.uuid}
-            style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}
-          >
-            <span style={{ color: "#475569" }}>&gt;</span>
-            {i === stepBreadcrumbs.length - 1 ? (
-              <span style={{ color: "#e2e8f0" }}>{crumb.name}</span>
-            ) : (
-              <Link
-                to={`/workflows/${workflowId}/steps/${crumb.uuid}`}
-                style={{ color: "#60a5fa", textDecoration: "none" }}
-              >
-                {crumb.name}
-              </Link>
-            )}
-          </span>
-        ))}
-      </nav>
+        items={[
+          {
+            label: workflow.name,
+            href: isAtWorkflowLevel ? undefined : `/workflows/${workflowId}`,
+          },
+          ...stepBreadcrumbs.map((crumb, i) => ({
+            label: crumb.name,
+            href: i < stepBreadcrumbs.length - 1 ? `/workflows/${workflowId}/steps/${crumb.uuid}` : undefined,
+          })),
+        ]}
+      />
       {isGridMode && <StatusFilterBar />}
       <div style={{ flex: 1, overflow: "auto", position: "relative" }}>
         <Outlet context={{ workflow } satisfies LayoutContext} />

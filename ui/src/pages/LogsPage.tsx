@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getLogs, getWorkflow, getBreadcrumbs } from "../lib/api";
 import LogLineComponent from "../components/LogLine";
 import CommandPalette from "../components/CommandPalette";
+import Breadcrumbs from "../components/Breadcrumbs";
 
 export default function LogsPage() {
   const { workflowId } = useParams<{ workflowId: string }>();
@@ -147,48 +148,17 @@ export default function LogsPage() {
 
       {/* Breadcrumb nav */}
       {breadcrumbs.length > 0 && (
-        <nav
+        <Breadcrumbs
           data-testid="logs-breadcrumb-nav"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.25rem",
-            padding: "0.5rem 1.25rem",
-            background: "#0f172a",
-            borderBottom: "1px solid #1e293b",
-            fontSize: "0.85rem",
-            flexWrap: "wrap",
-          }}
-        >
-          <Link
-            to={`/workflows/${workflowId}`}
-            style={{ color: "#60a5fa", textDecoration: "none" }}
-          >
-            {workflow?.name ?? workflowId}
-          </Link>
-          {breadcrumbs.map((crumb, i) => (
-            <span
-              key={crumb.uuid}
-              style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}
-            >
-              <span style={{ color: "#475569" }}>&gt;</span>
-              {i === breadcrumbs.length - 1 ? (
-                <span style={{ color: "#e2e8f0" }}>{crumb.name}</span>
-              ) : (
-                <Link
-                  to={`/workflows/${workflowId}/steps/${crumb.uuid}`}
-                  style={{ color: "#60a5fa", textDecoration: "none" }}
-                >
-                  {crumb.name}
-                </Link>
-              )}
-            </span>
-          ))}
-          <span style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
-            <span style={{ color: "#475569" }}>&gt;</span>
-            <span style={{ color: "#94a3b8" }}>Logs</span>
-          </span>
-        </nav>
+          items={[
+            { label: workflow?.name ?? workflowId!, href: `/workflows/${workflowId}` },
+            ...breadcrumbs.map((crumb, i) => ({
+              label: crumb.name,
+              href: i < breadcrumbs.length - 1 ? `/workflows/${workflowId}/steps/${crumb.uuid}` : undefined,
+            })),
+            { label: "Logs", color: "#94a3b8" },
+          ]}
+        />
       )}
 
       {/* Filter bar */}
