@@ -913,70 +913,60 @@ describe("[18] Workflow View: View Logs Shows Merged Logs for All Steps", () => 
 // ── [20] Status Filter Resets When Leaving Grid Mode ─────────────────────────
 
 describe("[20] Status Filter Resets When Leaving Grid Mode", () => {
-  test(
-    "filter applied in grid mode is cleared when navigating to a DAG-mode level",
-    async () => {
-      const result = await uploadFixture("large-linear.json");
-      const ctx = await browser.newContext();
-      const page = await ctx.newPage();
-      try {
-        await page.goto(`${UI_BASE}${viewPath(result.viewUrl)}`);
-        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+  test("filter applied in grid mode is cleared when navigating to a DAG-mode level", async () => {
+    const result = await uploadFixture("large-linear.json");
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    try {
+      await page.goto(`${UI_BASE}${viewPath(result.viewUrl)}`);
+      await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
 
-        // Top level has 3 steps (DAG mode) — navigate into Checkout (4000 sub-steps → grid mode)
-        await page.getByText("Checkout").first().waitFor({ timeout: 10_000 });
-        await page.getByText("Checkout").first().click();
-        await page.waitForURL(/\/steps\//, { timeout: 10_000 });
+      // Top level has 3 steps (DAG mode) — navigate into Checkout (4000 sub-steps → grid mode)
+      await page.getByText("Checkout").first().waitFor({ timeout: 10_000 });
+      await page.getByText("Checkout").first().click();
+      await page.waitForURL(/\/steps\//, { timeout: 10_000 });
 
-        // Wait for grid mode: status filter bar should be visible
-        await page
-          .getByText("Filter:")
-          .first()
-          .waitFor({ timeout: 30_000 });
+      // Wait for grid mode: status filter bar should be visible
+      await page.getByText("Filter:").first().waitFor({ timeout: 30_000 });
 
-        // Apply the "failed" filter — clicking "failed" label when filter is empty adds it
-        await page.getByText("failed").first().click();
+      // Apply the "failed" filter — clicking "failed" label when filter is empty adds it
+      await page.getByText("failed").first().click();
 
-        // Confirm filter is active: only failed steps visible on page 1
-        await page
-          .getByText("Checkout Step 1003")
-          .first()
-          .waitFor({ timeout: 10_000 });
+      // Confirm filter is active: only failed steps visible on page 1
+      await page
+        .getByText("Checkout Step 1003")
+        .first()
+        .waitFor({ timeout: 10_000 });
 
-        // Navigate back to the top-level workflow view via the breadcrumb link
-        const breadcrumb = page.locator('[data-testid="breadcrumb-nav"]');
-        const workflowLink = breadcrumb
-          .locator("a")
-          .filter({ hasText: "large-linear-pipeline" });
-        await workflowLink.click();
-        await page.waitForURL(/\/workflows\/[^/]+$/, { timeout: 10_000 });
+      // Navigate back to the top-level workflow view via the breadcrumb link
+      const breadcrumb = page.locator('[data-testid="breadcrumb-nav"]');
+      const workflowLink = breadcrumb
+        .locator("a")
+        .filter({ hasText: "large-linear-pipeline" });
+      await workflowLink.click();
+      await page.waitForURL(/\/workflows\/[^/]+$/, { timeout: 10_000 });
 
-        // All 3 top-level steps (Checkout, Build, Test) are "passed".
-        // If the filter persists, they are hidden and the DAG shows nothing.
-        // The correct behavior is for the filter to be reset when leaving grid mode.
-        for (const stepName of ["Checkout", "Build", "Test"]) {
-          await page
-            .getByText(stepName)
-            .first()
-            .waitFor({ timeout: 10_000 });
-          expect(
-            await page.getByText(stepName).first().isVisible(),
-            `top-level step "${stepName}" should be visible after filter reset`,
-          ).toBe(true);
-        }
-
-        // Status filter bar should not be visible (DAG mode at top level)
+      // All 3 top-level steps (Checkout, Build, Test) are "passed".
+      // If the filter persists, they are hidden and the DAG shows nothing.
+      // The correct behavior is for the filter to be reset when leaving grid mode.
+      for (const stepName of ["Checkout", "Build", "Test"]) {
+        await page.getByText(stepName).first().waitFor({ timeout: 10_000 });
         expect(
-          await page.getByText("Filter:").count(),
-          "filter bar should be hidden in DAG mode",
-        ).toBe(0);
-      } finally {
-        await ctx.close();
-        await deleteWorkflow(result.workflowId);
+          await page.getByText(stepName).first().isVisible(),
+          `top-level step "${stepName}" should be visible after filter reset`,
+        ).toBe(true);
       }
-    },
-    60_000,
-  );
+
+      // Status filter bar should not be visible (DAG mode at top level)
+      expect(
+        await page.getByText("Filter:").count(),
+        "filter bar should be hidden in DAG mode",
+      ).toBe(0);
+    } finally {
+      await ctx.close();
+      await deleteWorkflow(result.workflowId);
+    }
+  }, 60_000);
 });
 
 // ── [19] Step View (Non-Leaf): Merged Logs for Step Subtree ─────────────────
@@ -1127,17 +1117,26 @@ describe("[21] Command Palette — Search Trigger & Overlay", () => {
         await page.getByText("CI").first().waitFor({ timeout: 10_000 });
 
         await page.locator('[data-testid="search-trigger"]').first().click();
-        await page.locator('[data-testid="command-palette-input"]').waitFor({ timeout: 5_000 });
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
 
-        await page.locator('[data-testid="command-palette-input"]').fill("Build");
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .fill("Build");
         // Wait for debounce + API response
-        await page.locator('[data-testid="search-result"]').first().waitFor({ timeout: 10_000 });
+        await page
+          .locator('[data-testid="search-result"]')
+          .first()
+          .waitFor({ timeout: 10_000 });
 
         const results = page.locator('[data-testid="search-result"]');
         expect(await results.count()).toBeGreaterThanOrEqual(1);
 
         // Results should include Build Frontend or Build Backend steps
-        const bodyText = await page.locator('[data-testid="command-palette"]').textContent();
+        const bodyText = await page
+          .locator('[data-testid="command-palette"]')
+          .textContent();
         expect(bodyText?.toLowerCase()).toContain("build");
       } finally {
         await ctx.close();
@@ -1190,10 +1189,17 @@ describe("[21] Command Palette — Search Trigger & Overlay", () => {
         await page.getByText("CI").first().waitFor({ timeout: 10_000 });
 
         await page.locator('[data-testid="search-trigger"]').first().click();
-        await page.locator('[data-testid="command-palette-input"]').waitFor({ timeout: 5_000 });
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
 
-        await page.locator('[data-testid="command-palette-input"]').fill("Build Frontend");
-        await page.locator('[data-testid="search-result"]').first().waitFor({ timeout: 10_000 });
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .fill("Build Frontend");
+        await page
+          .locator('[data-testid="search-result"]')
+          .first()
+          .waitFor({ timeout: 10_000 });
 
         // Click the first result
         await page.locator('[data-testid="search-result"]').first().click();
@@ -1201,7 +1207,9 @@ describe("[21] Command Palette — Search Trigger & Overlay", () => {
         // Should navigate to a step view or workflow view
         await page.waitForURL(/\/(steps|workflows)\//, { timeout: 10_000 });
         // Palette should be closed
-        expect(await page.locator('[data-testid="command-palette"]').count()).toBe(0);
+        expect(
+          await page.locator('[data-testid="command-palette"]').count(),
+        ).toBe(0);
       } finally {
         await ctx.close();
       }
@@ -1240,12 +1248,17 @@ describe("[22] LogsPage — Breadcrumb Navigation", () => {
         await page.getByText("CI").first().click();
         await page.waitForURL(/\/steps\//, { timeout: 10_000 });
 
-        await page.getByText("Build Frontend").first().waitFor({ timeout: 10_000 });
+        await page
+          .getByText("Build Frontend")
+          .first()
+          .waitFor({ timeout: 10_000 });
         await page.getByText("Build Frontend").first().click();
         await page.waitForURL(/\/logs/, { timeout: 10_000 });
 
         // Wait for logs page to render
-        await page.locator('[data-testid="logs-page"]').waitFor({ timeout: 10_000 });
+        await page
+          .locator('[data-testid="logs-page"]')
+          .waitFor({ timeout: 10_000 });
 
         // Breadcrumb nav should be present
         const breadcrumb = page.locator('[data-testid="logs-breadcrumb-nav"]');
@@ -1275,7 +1288,10 @@ describe("[22] LogsPage — Breadcrumb Navigation", () => {
 
         // Build Frontend should be plain text (current step in path, before Logs)
         expect(
-          await breadcrumb.locator("a").filter({ hasText: "Build Frontend" }).count(),
+          await breadcrumb
+            .locator("a")
+            .filter({ hasText: "Build Frontend" })
+            .count(),
           "Build Frontend is plain text",
         ).toBe(0);
       } finally {
@@ -1294,7 +1310,9 @@ describe("[22] LogsPage — Breadcrumb Navigation", () => {
         // Go directly to logs for /ci/build-frontend
         const logsUrl = `${UI_BASE}/workflows/${workflowId}/logs?stepPath=%2Fci%2Fbuild-frontend`;
         await page.goto(logsUrl);
-        await page.locator('[data-testid="logs-page"]').waitFor({ timeout: 10_000 });
+        await page
+          .locator('[data-testid="logs-page"]')
+          .waitFor({ timeout: 10_000 });
 
         const breadcrumb = page.locator('[data-testid="logs-breadcrumb-nav"]');
         await breadcrumb.waitFor({ timeout: 10_000 });
@@ -1323,7 +1341,9 @@ describe("[22] LogsPage — Breadcrumb Navigation", () => {
       try {
         const logsUrl = `${UI_BASE}/workflows/${workflowId}/logs?stepPath=%2Fci%2Fbuild-frontend`;
         await page.goto(logsUrl);
-        await page.locator('[data-testid="logs-page"]').waitFor({ timeout: 10_000 });
+        await page
+          .locator('[data-testid="logs-page"]')
+          .waitFor({ timeout: 10_000 });
 
         const breadcrumb = page.locator('[data-testid="logs-breadcrumb-nav"]');
         await breadcrumb.waitFor({ timeout: 10_000 });
@@ -1350,16 +1370,22 @@ describe("[22] LogsPage — Breadcrumb Navigation", () => {
       try {
         const logsUrl = `${UI_BASE}/workflows/${linearResult.workflowId}/logs?stepPath=%2Fcheckout`;
         await page.goto(logsUrl);
-        await page.locator('[data-testid="logs-page"]').waitFor({ timeout: 10_000 });
+        await page
+          .locator('[data-testid="logs-page"]')
+          .waitFor({ timeout: 10_000 });
 
-        // The breadcrumb nav should not appear for a top-level step
-        // (only 1 breadcrumb returned, and the design only renders it when breadcrumbs.length > 0)
-        // For a single-segment path, breadcrumbs = [{name: "Checkout", ...}]
-        // The nav IS rendered but has only workflow name > Checkout > Logs
-        // Let's verify the "Back to workflow" link is present (always shown)
-        const backLink = page.locator('a', { hasText: /back to workflow/i });
-        await backLink.waitFor({ timeout: 10_000 });
-        expect(await backLink.isVisible()).toBe(true);
+        const breadcrumb = page.locator('[data-testid="logs-breadcrumb-nav"]');
+        await breadcrumb.waitFor({ timeout: 10_000 });
+
+        // Click the workflow name link
+        await breadcrumb
+          .locator("a")
+          .filter({ hasText: "simple-linear" })
+          .click();
+
+        await page.waitForURL(/\/workflows\/[^/]+$/, { timeout: 10_000 });
+        expect(page.url()).toContain(`/workflows/${linearResult.workflowId}`);
+        expect(page.url()).not.toContain("/logs");
       } finally {
         await ctx.close();
         await deleteWorkflow(linearResult.workflowId);
@@ -1376,7 +1402,9 @@ describe("[22] LogsPage — Breadcrumb Navigation", () => {
       try {
         const logsUrl = `${UI_BASE}/workflows/${workflowId}/logs?stepPath=%2Fci%2Fbuild-frontend`;
         await page.goto(logsUrl);
-        await page.locator('[data-testid="logs-page"]').waitFor({ timeout: 10_000 });
+        await page
+          .locator('[data-testid="logs-page"]')
+          .waitFor({ timeout: 10_000 });
 
         const trigger = page.locator('[data-testid="search-trigger"]');
         await trigger.waitFor({ timeout: 5_000 });
