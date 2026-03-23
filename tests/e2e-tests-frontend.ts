@@ -1416,3 +1416,188 @@ describe("[22] LogsPage — Breadcrumb Navigation", () => {
     TEST_TIMEOUT,
   );
 });
+
+// ── [23] Landing Page Search ──────────────────────────────────────────────────
+
+describe("[23] Landing Page — Search Trigger & Command Palette", () => {
+  let workflowId: string;
+
+  beforeAll(async () => {
+    const result = await uploadFixture("nested-hierarchy.json");
+    workflowId = result.workflowId;
+  }, 15_000);
+
+  afterAll(async () => {
+    if (workflowId) await deleteWorkflow(workflowId);
+  });
+
+  test(
+    "search trigger button is visible on the landing page",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(UI_BASE);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        const trigger = page.locator('[data-testid="search-trigger"]');
+        await trigger.waitFor({ timeout: 10_000 });
+        expect(await trigger.isVisible()).toBe(true);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "clicking search trigger on landing page opens command palette",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(UI_BASE);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page.locator('[data-testid="search-trigger"]').click();
+
+        const palette = page.locator('[data-testid="command-palette"]');
+        await palette.waitFor({ timeout: 5_000 });
+        expect(await palette.isVisible()).toBe(true);
+
+        const input = page.locator('[data-testid="command-palette-input"]');
+        expect(await input.isVisible()).toBe(true);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "Ctrl+K on landing page opens command palette",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(UI_BASE);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page.keyboard.press("Control+k");
+
+        const palette = page.locator('[data-testid="command-palette"]');
+        await palette.waitFor({ timeout: 5_000 });
+        expect(await palette.isVisible()).toBe(true);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "landing page palette searches all workflows (not scoped to a single workflow)",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(UI_BASE);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        // Search for a known workflow name from nested-hierarchy.json
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .fill("nested-hierarchy");
+
+        await page
+          .locator('[data-testid="search-result"]')
+          .first()
+          .waitFor({ timeout: 10_000 });
+
+        const results = page.locator('[data-testid="search-result"]');
+        expect(await results.count()).toBeGreaterThanOrEqual(1);
+
+        const paletteText = await page
+          .locator('[data-testid="command-palette"]')
+          .textContent();
+        expect(paletteText?.toLowerCase()).toContain("nested-hierarchy");
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "Escape closes the palette on the landing page",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(UI_BASE);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page.locator('[data-testid="search-trigger"]').click();
+        const input = page.locator('[data-testid="command-palette-input"]');
+        await input.waitFor({ timeout: 5_000 });
+        await input.click();
+
+        await page.keyboard.press("Escape");
+
+        await page.waitForFunction(
+          () => !document.querySelector('[data-testid="command-palette"]'),
+          { timeout: 5_000 },
+        );
+        expect(
+          await page.locator('[data-testid="command-palette"]').count(),
+        ).toBe(0);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "clicking a workflow result on the landing page navigates to workflow view",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(UI_BASE);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .fill("nested-hierarchy");
+
+        await page
+          .locator('[data-testid="search-result"]')
+          .first()
+          .waitFor({ timeout: 10_000 });
+
+        await page.locator('[data-testid="search-result"]').first().click();
+
+        // Should navigate to a workflow or step view
+        await page.waitForURL(/\/(workflows|steps)\//, { timeout: 10_000 });
+        // Palette should be closed
+        expect(
+          await page.locator('[data-testid="command-palette"]').count(),
+        ).toBe(0);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+});

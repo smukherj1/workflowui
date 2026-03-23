@@ -1,4 +1,4 @@
-import { Outlet, useParams, useOutletContext } from "react-router-dom";
+import { Outlet, useParams, useOutletContext, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getWorkflow } from "../lib/api";
 import WorkflowHeader from "./WorkflowHeader";
@@ -92,7 +92,10 @@ export default function WorkflowLayout() {
           },
           ...stepBreadcrumbs.map((crumb, i) => ({
             label: crumb.name,
-            href: i < stepBreadcrumbs.length - 1 ? `/workflows/${workflowId}/steps/${crumb.uuid}` : undefined,
+            href:
+              i < stepBreadcrumbs.length - 1
+                ? `/workflows/${workflowId}/steps/${crumb.uuid}`
+                : undefined,
           })),
         ]}
       />
