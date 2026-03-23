@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { workflowSchema, validateStructureAndDAG } from "../lib/validation.js";
-import { insertWorkflow, getWorkflow, deleteWorkflow } from "../lib/db.js";
+import { insertWorkflow, getWorkflow, deleteWorkflow, getBreadcrumbsByPath } from "../lib/db.js";
 
 const router = new Hono();
 
@@ -65,6 +65,19 @@ router.get(
       uploadedAt: wf.uploadedAt,
       expiresAt: wf.expiresAt,
     });
+  },
+);
+
+// GET /api/workflows/:id/breadcrumbs?stepPath=
+router.get(
+  "/:id/breadcrumbs",
+  zValidator("param", z.object({ id: z.uuid() })),
+  zValidator("query", z.object({ stepPath: z.string().min(1) })),
+  async (c) => {
+    const { id } = c.req.valid("param");
+    const { stepPath } = c.req.valid("query");
+    const breadcrumbs = await getBreadcrumbsByPath(id, stepPath);
+    return c.json({ breadcrumbs });
   },
 );
 

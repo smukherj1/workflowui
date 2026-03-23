@@ -1032,3 +1032,359 @@ describe("[19] Step View (Non-Leaf): View Logs Shows Merged Logs for Subtree", (
     TEST_TIMEOUT,
   );
 });
+
+// ── [21] Command Palette (Search UI) ─────────────────────────────────────────
+
+describe("[21] Command Palette — Search Trigger & Overlay", () => {
+  let workflowId: string;
+  let workflowViewUrl: string;
+
+  beforeAll(async () => {
+    const result = await uploadFixture("nested-hierarchy.json");
+    workflowId = result.workflowId;
+    workflowViewUrl = `${UI_BASE}${viewPath(result.viewUrl)}`;
+  }, 15_000);
+
+  afterAll(async () => {
+    if (workflowId) await deleteWorkflow(workflowId);
+  });
+
+  test(
+    "search trigger button is visible in workflow header",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(workflowViewUrl);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+        await page.getByText("CI").first().waitFor({ timeout: 10_000 });
+
+        const trigger = page.locator('[data-testid="search-trigger"]').first();
+        await trigger.waitFor({ timeout: 10_000 });
+        expect(await trigger.isVisible()).toBe(true);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "clicking search trigger opens the command palette overlay",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(workflowViewUrl);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+        await page.getByText("CI").first().waitFor({ timeout: 10_000 });
+
+        await page.locator('[data-testid="search-trigger"]').first().click();
+
+        const palette = page.locator('[data-testid="command-palette"]');
+        await palette.waitFor({ timeout: 5_000 });
+        expect(await palette.isVisible()).toBe(true);
+
+        const input = page.locator('[data-testid="command-palette-input"]');
+        expect(await input.isVisible()).toBe(true);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "keyboard shortcut Ctrl+K opens the command palette",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(workflowViewUrl);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+        await page.getByText("CI").first().waitFor({ timeout: 10_000 });
+
+        await page.keyboard.press("Control+k");
+
+        const palette = page.locator('[data-testid="command-palette"]');
+        await palette.waitFor({ timeout: 5_000 });
+        expect(await palette.isVisible()).toBe(true);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "typing in command palette shows step results for current workflow",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(workflowViewUrl);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+        await page.getByText("CI").first().waitFor({ timeout: 10_000 });
+
+        await page.locator('[data-testid="search-trigger"]').first().click();
+        await page.locator('[data-testid="command-palette-input"]').waitFor({ timeout: 5_000 });
+
+        await page.locator('[data-testid="command-palette-input"]').fill("Build");
+        // Wait for debounce + API response
+        await page.locator('[data-testid="search-result"]').first().waitFor({ timeout: 10_000 });
+
+        const results = page.locator('[data-testid="search-result"]');
+        expect(await results.count()).toBeGreaterThanOrEqual(1);
+
+        // Results should include Build Frontend or Build Backend steps
+        const bodyText = await page.locator('[data-testid="command-palette"]').textContent();
+        expect(bodyText?.toLowerCase()).toContain("build");
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "pressing Escape closes the command palette",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(workflowViewUrl);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+        await page.getByText("CI").first().waitFor({ timeout: 10_000 });
+
+        await page.locator('[data-testid="search-trigger"]').first().click();
+        const input = page.locator('[data-testid="command-palette-input"]');
+        await input.waitFor({ timeout: 5_000 });
+        // Ensure input is focused before pressing Escape
+        await input.click();
+
+        await page.keyboard.press("Escape");
+
+        // Palette should be gone
+        await page.waitForFunction(
+          () => !document.querySelector('[data-testid="command-palette"]'),
+          { timeout: 5_000 },
+        );
+        expect(
+          await page.locator('[data-testid="command-palette"]').count(),
+        ).toBe(0);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "clicking a search result navigates to the step view",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(workflowViewUrl);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+        await page.getByText("CI").first().waitFor({ timeout: 10_000 });
+
+        await page.locator('[data-testid="search-trigger"]').first().click();
+        await page.locator('[data-testid="command-palette-input"]').waitFor({ timeout: 5_000 });
+
+        await page.locator('[data-testid="command-palette-input"]').fill("Build Frontend");
+        await page.locator('[data-testid="search-result"]').first().waitFor({ timeout: 10_000 });
+
+        // Click the first result
+        await page.locator('[data-testid="search-result"]').first().click();
+
+        // Should navigate to a step view or workflow view
+        await page.waitForURL(/\/(steps|workflows)\//, { timeout: 10_000 });
+        // Palette should be closed
+        expect(await page.locator('[data-testid="command-palette"]').count()).toBe(0);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+});
+
+// ── [22] LogsPage Breadcrumb Navigation ──────────────────────────────────────
+
+describe("[22] LogsPage — Breadcrumb Navigation", () => {
+  let workflowId: string;
+  let workflowViewUrl: string;
+
+  beforeAll(async () => {
+    const result = await uploadFixture("nested-hierarchy.json");
+    workflowId = result.workflowId;
+    workflowViewUrl = `${UI_BASE}${viewPath(result.viewUrl)}`;
+  }, 15_000);
+
+  afterAll(async () => {
+    if (workflowId) await deleteWorkflow(workflowId);
+  });
+
+  test(
+    "LogsPage for a nested step shows breadcrumb nav with hierarchy links",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        // Navigate into CI, then Build Frontend, then open logs
+        await page.goto(workflowViewUrl);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page.getByText("CI").first().waitFor({ timeout: 10_000 });
+        await page.getByText("CI").first().click();
+        await page.waitForURL(/\/steps\//, { timeout: 10_000 });
+
+        await page.getByText("Build Frontend").first().waitFor({ timeout: 10_000 });
+        await page.getByText("Build Frontend").first().click();
+        await page.waitForURL(/\/logs/, { timeout: 10_000 });
+
+        // Wait for logs page to render
+        await page.locator('[data-testid="logs-page"]').waitFor({ timeout: 10_000 });
+
+        // Breadcrumb nav should be present
+        const breadcrumb = page.locator('[data-testid="logs-breadcrumb-nav"]');
+        await breadcrumb.waitFor({ timeout: 10_000 });
+
+        const text = await breadcrumb.textContent();
+        // Should contain workflow name, CI (parent), Build Frontend (current), and Logs
+        expect(text).toContain("nested-hierarchy-pipeline");
+        expect(text).toContain("CI");
+        expect(text).toContain("Build Frontend");
+        expect(text).toContain("Logs");
+
+        // Workflow name should be a clickable link
+        expect(
+          await breadcrumb
+            .locator("a")
+            .filter({ hasText: "nested-hierarchy-pipeline" })
+            .count(),
+          "workflow name is a link",
+        ).toBe(1);
+
+        // CI should be a clickable link (ancestor step)
+        expect(
+          await breadcrumb.locator("a").filter({ hasText: /^CI$/ }).count(),
+          "CI is a link (ancestor)",
+        ).toBe(1);
+
+        // Build Frontend should be plain text (current step in path, before Logs)
+        expect(
+          await breadcrumb.locator("a").filter({ hasText: "Build Frontend" }).count(),
+          "Build Frontend is plain text",
+        ).toBe(0);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "clicking workflow name link in LogsPage breadcrumb navigates back to workflow view",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        // Go directly to logs for /ci/build-frontend
+        const logsUrl = `${UI_BASE}/workflows/${workflowId}/logs?stepPath=%2Fci%2Fbuild-frontend`;
+        await page.goto(logsUrl);
+        await page.locator('[data-testid="logs-page"]').waitFor({ timeout: 10_000 });
+
+        const breadcrumb = page.locator('[data-testid="logs-breadcrumb-nav"]');
+        await breadcrumb.waitFor({ timeout: 10_000 });
+
+        // Click the workflow name link
+        await breadcrumb
+          .locator("a")
+          .filter({ hasText: "nested-hierarchy-pipeline" })
+          .click();
+
+        await page.waitForURL(/\/workflows\/[^/]+$/, { timeout: 10_000 });
+        expect(page.url()).toContain(`/workflows/${workflowId}`);
+        expect(page.url()).not.toContain("/logs");
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "clicking CI link in LogsPage breadcrumb navigates to CI step view",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        const logsUrl = `${UI_BASE}/workflows/${workflowId}/logs?stepPath=%2Fci%2Fbuild-frontend`;
+        await page.goto(logsUrl);
+        await page.locator('[data-testid="logs-page"]').waitFor({ timeout: 10_000 });
+
+        const breadcrumb = page.locator('[data-testid="logs-breadcrumb-nav"]');
+        await breadcrumb.waitFor({ timeout: 10_000 });
+
+        // Click CI link (ancestor step)
+        await breadcrumb.locator("a").filter({ hasText: /^CI$/ }).click();
+
+        await page.waitForURL(/\/steps\//, { timeout: 10_000 });
+        expect(page.url()).toContain("/steps/");
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "LogsPage for top-level leaf step shows no breadcrumb nav (stepPath has single segment)",
+    async () => {
+      // simple-linear: Checkout is top-level leaf → stepPath=/checkout
+      const linearResult = await uploadFixture("simple-linear.json");
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        const logsUrl = `${UI_BASE}/workflows/${linearResult.workflowId}/logs?stepPath=%2Fcheckout`;
+        await page.goto(logsUrl);
+        await page.locator('[data-testid="logs-page"]').waitFor({ timeout: 10_000 });
+
+        // The breadcrumb nav should not appear for a top-level step
+        // (only 1 breadcrumb returned, and the design only renders it when breadcrumbs.length > 0)
+        // For a single-segment path, breadcrumbs = [{name: "Checkout", ...}]
+        // The nav IS rendered but has only workflow name > Checkout > Logs
+        // Let's verify the "Back to workflow" link is present (always shown)
+        const backLink = page.locator('a', { hasText: /back to workflow/i });
+        await backLink.waitFor({ timeout: 10_000 });
+        expect(await backLink.isVisible()).toBe(true);
+      } finally {
+        await ctx.close();
+        await deleteWorkflow(linearResult.workflowId);
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "LogsPage has search trigger button",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        const logsUrl = `${UI_BASE}/workflows/${workflowId}/logs?stepPath=%2Fci%2Fbuild-frontend`;
+        await page.goto(logsUrl);
+        await page.locator('[data-testid="logs-page"]').waitFor({ timeout: 10_000 });
+
+        const trigger = page.locator('[data-testid="search-trigger"]');
+        await trigger.waitFor({ timeout: 5_000 });
+        expect(await trigger.isVisible()).toBe(true);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+});

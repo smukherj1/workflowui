@@ -70,3 +70,43 @@ export interface LogsResponse {
   lines: LogLine[];
   nextCursor: string | null;
 }
+
+export interface WorkflowSearchResult {
+  type: "workflow";
+  workflowId: string;
+  name: string;
+  uri?: string | null;
+  pin?: string | null;
+  status: StepStatus;
+  startTime: string | null;
+  uploadedAt: string;
+}
+
+export interface StepSearchResult {
+  type: "step";
+  workflowId: string;
+  workflowName: string;
+  uuid: string;
+  name: string;
+  uri?: string | null;
+  pin?: string | null;
+  status: StepStatus;
+  hierarchyPath: string;
+  startTime: string | null;
+}
+
+export type SearchResult = WorkflowSearchResult | StepSearchResult;
+
+export interface SearchResponse {
+  results: SearchResult[];
+}
+
+export interface BreadcrumbItem {
+  uuid: string;
+  name: string;
+  hierarchyPath: string;
+}
+
+export interface BreadcrumbsResponse {
+  breadcrumbs: BreadcrumbItem[];
+}

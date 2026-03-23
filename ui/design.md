@@ -46,6 +46,7 @@ App                                  src/App.tsx
 │
 ├── WorkflowLayout                   src/components/WorkflowLayout.tsx
 │   ├── WorkflowHeader               src/components/WorkflowHeader.tsx
+│   │   └── CommandPalette           src/components/CommandPalette.tsx
 │   ├── unified breadcrumb bar       (inline nav in WorkflowLayout)
 │   ├── StatusFilterBar              src/components/StatusFilterBar.tsx
 │   │
@@ -63,7 +64,9 @@ App                                  src/App.tsx
 │       └── LeafDetail               src/components/LeafDetail.tsx
 │
 └── LogsPage                         src/pages/LogsPage.tsx
-        └── LogLine[]                src/components/LogLine.tsx
+        ├── logs-breadcrumb-nav      (inline nav, fetched via getBreadcrumbs)
+        ├── LogLine[]                src/components/LogLine.tsx
+        └── CommandPalette           src/components/CommandPalette.tsx
 ```
 
 ---
@@ -72,7 +75,7 @@ App                                  src/App.tsx
 
 ### `src/lib/types.ts`
 
-Defines all TypeScript interfaces shared across the frontend: `StepStatus`, `Metadata`, `WorkflowDetail`, `Step`, `StepDetail`, `StepsResponse`, `StepDetailResponse`, `LogLine`, `LogsResponse`, and `Dependency`.
+Defines all TypeScript interfaces shared across the frontend: `StepStatus`, `Metadata`, `WorkflowDetail`, `Step`, `StepDetail`, `StepsResponse`, `StepDetailResponse`, `LogLine`, `LogsResponse`, `Dependency`, `WorkflowSearchResult`, `StepSearchResult`, `SearchResult`, `SearchResponse`, `BreadcrumbItem`, and `BreadcrumbsResponse`.
 
 The `Metadata` interface captures the standardized metadata fields:
 
@@ -88,7 +91,11 @@ interface Metadata {
 
 ### `src/lib/api.ts`
 
-Typed fetch wrappers for every API endpoint — `uploadWorkflow`, `getWorkflow`, `getSteps`, `getStepDetail`, `lookupStep`, `getLogs`. All requests go to `/api` which Vite proxies to `:3001` in dev and nginx forwards in production.
+Typed fetch wrappers for every API endpoint — `uploadWorkflow`, `getWorkflow`, `getSteps`, `getStepDetail`, `lookupStep`, `getLogs`, `search`, `getBreadcrumbs`. All requests go to `/api` which Vite proxies to `:3001` in dev and nginx forwards in production.
+
+`search(q, options?)` calls `GET /api/search` with optional `scope`, `workflowId`, `field`, `from`, `to`, and `limit` parameters, returning a `SearchResponse`.
+
+`getBreadcrumbs(workflowId, stepPath)` calls `GET /api/workflows/:id/breadcrumbs?stepPath=`, returning a `BreadcrumbsResponse` with the full ancestor chain for a given hierarchy path. Used by `LogsPage` to render its breadcrumb bar.
 
 `lookupStep(uuid)` calls `GET /api/steps/:uuid` to resolve a step UUID to its workflow ID and step detail. This is used by `NavigateForm` when the user enters a step UUID without knowing the workflow.
 
@@ -163,9 +170,26 @@ Horizontal dark bar at the top of every workflow view. Shows:
 - A **home link** (app name or logo) that navigates to `/` (the landing page)
 - `StatusBadge` for the workflow's overall status
 - Workflow name in bold
+- A **search trigger button** (🔍 Search steps... ⌘K) that opens `CommandPalette` scoped to the current workflow's steps
 - Relative upload timestamp right-aligned, using `formatRelative`
 
-The home link provides a persistent way to return to the landing page from any workflow or step view.
+Registers a `window` `keydown` listener for Ctrl/Cmd+K to toggle the palette. The search trigger has `data-testid="search-trigger"`.
+
+### `CommandPalette` — `src/components/CommandPalette.tsx`
+
+A centered modal overlay for searching workflows and steps. Props:
+
+- `open` — controls visibility
+- `onClose` — called on Escape, backdrop click, or after navigation
+- `workflowId?` — when set, default search scope is `"steps"` within that workflow; otherwise scope is `"all"`
+
+Behavior:
+- Auto-focuses the text input on open (50 ms delay to allow mount)
+- Registers a global `keydown` listener for Escape while open
+- Debounces API calls (200 ms) to `GET /api/search` as the user types
+- Renders results with `StatusBadge`, step/workflow name, hierarchy path or URI, and a type badge
+- Arrow keys move selection; Enter or click navigates and closes the palette
+- Element has `data-testid="command-palette"`, input has `data-testid="command-palette-input"`, each result row has `data-testid="search-result"`
 
 ### `InfoCard` — `src/components/InfoCard.tsx`
 
@@ -259,14 +283,15 @@ Metadata table for a leaf step: status, hierarchy path, and depth. A prominent "
 
 ### `LogsPage` — `src/pages/LogsPage.tsx`
 
-A standalone full-page route (`/workflows/:workflowId/logs?stepPath=`) for viewing logs. Not nested under `WorkflowLayout` — it has its own minimal header with a back link to the workflow/step that linked here.
+A standalone full-page route (`/workflows/:workflowId/logs?stepPath=`) for viewing logs. Not nested under `WorkflowLayout` — it has its own minimal header with a back link to the workflow root.
 
 Features:
 - **Full viewport**: the log content area fills the entire viewport below a compact header
+- **Breadcrumb navigation**: calls `getBreadcrumbs(workflowId, stepPath)` and renders a `[data-testid="logs-breadcrumb-nav"]` bar showing `WorkflowName > Ancestor... > CurrentStep > Logs`. Workflow name and ancestor steps are clickable links; the current step name and the "Logs" label are plain text. Only rendered when `stepPath` is not `/`.
+- **Search trigger**: a `[data-testid="search-trigger"]` button in the header and a `CommandPalette` (scoped to the current workflow's steps) are available. Ctrl/Cmd+K also opens the palette.
 - **Page-based navigation**: fetches one page of log lines at a time using `useQuery(['logs', workflowId, stepPath, cursor])`. "Previous" / "Next" buttons and a page indicator let the user move between pages. This avoids the performance issues of infinite scroll with large log volumes.
 - **Text filter**: an input field filters displayed lines client-side (substring match)
 - **Log rendering**: each line is rendered as a `LogLine` component
-- **Header**: shows the step path, workflow name, and a link back to the referring view
 
 The element has `data-testid="logs-page"` for test targeting.
 
@@ -307,6 +332,15 @@ A single unified breadcrumb bar in `WorkflowLayout` shows the full path from the
 - At a step level (`StepView` mounted): `StepView` calls `setStepBreadcrumbs(breadcrumbs)` on load; `WorkflowLayout` re-renders to show workflow name (as a link) `>` ancestor steps (as links) `>` current step (highlighted).
 
 Clicking the workflow name navigates to `/workflows/:workflowId`. Clicking an ancestor step navigates to that step's sub-step view, triggering a new `StepView` mount and breadcrumb update.
+
+### Search Flow
+
+A `CommandPalette` overlay is accessible from `WorkflowHeader` (within any workflow or step view) and from `LogsPage`. It opens via the 🔍 search trigger button or Ctrl/Cmd+K.
+
+- **Within a workflow view**: `workflowId` is passed to `CommandPalette`, so the default search scope is `"steps"` within that workflow. Results navigate to `/workflows/:id/steps/:uuid`.
+- **On the landing page**: not yet wired in; `NavigateForm` handles exact-ID lookup.
+
+As the user types, requests are debounced (200 ms) to `GET /api/search`. Results are rendered with a status badge, name, and hierarchy path or URI. Arrow keys navigate the list; Enter or click selects. Escape or clicking the backdrop closes the palette.
 
 ### Home Navigation Flow
 
@@ -359,4 +393,4 @@ docker compose up -d
 bun run test:e2e-frontend   # from the repo root
 ```
 
-Tests cover: SPA hydration, upload flow, navigate-by-ID, DAG rendering, header metadata, info card, status badges, step navigation, breadcrumbs, dedicated log viewer, deep linking, browser history, validation errors, and elapsed time display. See [`/tests/e2e-tests-frontend.ts`](../tests/e2e-tests-frontend.ts) for the full test suite.
+Tests cover: SPA hydration, upload flow, navigate-by-ID, DAG rendering, header metadata, info card, status badges, step navigation, breadcrumbs, dedicated log viewer, deep linking, browser history, validation errors, elapsed time display, command palette (open/close/search/navigate), and `LogsPage` breadcrumb navigation. See [`/tests/e2e-tests-frontend.ts`](../tests/e2e-tests-frontend.ts) for the full test suite.

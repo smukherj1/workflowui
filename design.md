@@ -154,9 +154,10 @@ See [`ui/design.md`](ui/design.md) for the full details on:
     /src/
       index.ts                         # Hono app entry
       /routes/
-        workflows.ts                   # Upload + workflow detail routes
+        workflows.ts                   # Upload + workflow detail + breadcrumbs routes
         steps.ts                       # Step listing + detail routes
         logs.ts                        # Log query routes
+        search.ts                      # Search workflows and steps
       /lib/
         db.ts                          # Drizzle client, all queries
         schema.ts                      # Drizzle schema definitions
@@ -192,7 +193,6 @@ For dev, the Vite dev server proxies `/api` requests to the Hono server.
 
 ## Future Work
 
-- Ability to search workflows and Steps in the UI by name, URI, pin and date.
 - Incrementally upload a workflow.
 - Verify workflows are retained for up to 7 days.
 - Add Github workflows to build docker images for the ui and server.

@@ -97,10 +97,12 @@ All routes are served on `:3001`.
 | POST   | `/api/workflows`                                   | `routes/workflows.ts` | Upload workflow JSON, returns `{ workflowId, viewUrl }`       |
 | GET    | `/api/workflows/:id`                               | `routes/workflows.ts` | Workflow detail (metadata, status, timestamps)                |
 | DELETE | `/api/workflows/:id`                               | `routes/workflows.ts` | Delete workflow and all associated steps/logs (204/404)       |
+| GET    | `/api/workflows/:id/breadcrumbs?stepPath=`         | `routes/workflows.ts` | Breadcrumb chain for a given step path within a workflow      |
 | GET    | `/api/workflows/:id/steps?parentId=`               | `routes/steps.ts`     | All steps at hierarchy level with dependencies (single response) |
 | GET    | `/api/workflows/:id/steps/:uuid`                   | `routes/steps.ts`     | Step detail with breadcrumbs                                  |
 | GET    | `/api/steps/:uuid`                                 | `routes/steps.ts`     | Step lookup by UUID (returns workflow ID and step detail)     |
 | GET    | `/api/workflows/:id/logs?stepPath=&limit=&cursor=` | `routes/logs.ts`      | Merged logs for a step scope (cursor-paginated)               |
+| GET    | `/api/search?q=&scope=&workflowId=&field=&from=&to=&limit=` | `routes/search.ts` | Search workflows and steps by name, URI, pin, or path |
 
 **Workflow detail response shape:**
 
@@ -205,6 +207,62 @@ Returns the same step detail as above, plus the `workflowId` so the frontend can
 
 Cursor for logs is `base64url(row_offset)`.
 
+**Breadcrumbs response shape** (`GET /api/workflows/:id/breadcrumbs?stepPath=`):
+
+```json
+{
+  "breadcrumbs": [
+    { "uuid": "...", "name": "CI", "hierarchyPath": "/ci" },
+    { "uuid": "...", "name": "Build Frontend", "hierarchyPath": "/ci/build-frontend" }
+  ]
+}
+```
+
+Walks each path segment of `stepPath` and looks up the corresponding step row. Returns an empty array if the path is unknown. Used by `LogsPage` to render breadcrumb navigation.
+
+**Search response shape** (`GET /api/search`):
+
+| Parameter    | Required | Description |
+| ------------ | -------- | ----------- |
+| `q`          | Yes      | Search term (substring match, case-insensitive via `ILIKE`) |
+| `scope`      | No       | `"workflows"`, `"steps"`, or `"all"` (default `"all"`) |
+| `workflowId` | No       | Scope step search to a specific workflow |
+| `field`      | No       | Restrict to `"name"`, `"uri"`, `"pin"`, or `"path"`. Default searches name, URI, and pin together |
+| `from`       | No       | Filter by `startTime >= RFC 3339 timestamp` |
+| `to`         | No       | Filter by `startTime <= RFC 3339 timestamp` |
+| `limit`      | No       | Max results (default 20, max 100) |
+
+```json
+{
+  "results": [
+    {
+      "type": "workflow",
+      "workflowId": "...",
+      "name": "my-pipeline",
+      "uri": "github://org/repo",
+      "pin": "abc123",
+      "status": "passed",
+      "startTime": "...",
+      "uploadedAt": "..."
+    },
+    {
+      "type": "step",
+      "workflowId": "...",
+      "workflowName": "my-pipeline",
+      "uuid": "...",
+      "name": "build-frontend",
+      "uri": "...",
+      "pin": "...",
+      "status": "failed",
+      "hierarchyPath": "/ci/build-frontend",
+      "startTime": "..."
+    }
+  ]
+}
+```
+
+Search uses `ILIKE` for case-insensitive substring matching. No special indexes are needed given the 7-day retention window and modest data volume.
+
 ---
 
 ## Upload & Validation Pipeline
@@ -227,9 +285,10 @@ workflow-server/
   src/
     index.ts              # Hono app entry, port config, route mounting
     routes/
-      workflows.ts        # POST /api/workflows, GET /api/workflows/:id
+      workflows.ts        # POST /api/workflows, GET /api/workflows/:id, GET breadcrumbs
       steps.ts            # GET steps at level, GET step detail + breadcrumbs
       logs.ts             # GET logs (DB query, cursor-paginated)
+      search.ts           # GET /api/search (workflows and steps)
     lib/
       db.ts               # Drizzle client, all query functions
       schema.ts           # Drizzle table/relation definitions

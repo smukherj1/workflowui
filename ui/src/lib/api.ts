@@ -4,6 +4,8 @@ import type {
   StepDetailResponse,
   StepLookupResponse,
   LogsResponse,
+  SearchResponse,
+  BreadcrumbsResponse,
 } from "./types";
 
 const API_BASE = "/api";
@@ -86,6 +88,41 @@ export async function getStepDetail(
 export async function lookupStep(uuid: string): Promise<StepLookupResponse> {
   const res = await fetch(`${API_BASE}/steps/${uuid}`);
   if (!res.ok) throw new ApiError("Step not found", res.status);
+  return res.json();
+}
+
+export async function search(
+  q: string,
+  options?: {
+    scope?: "workflows" | "steps" | "all";
+    workflowId?: string;
+    field?: "name" | "uri" | "pin" | "path";
+    from?: string;
+    to?: string;
+    limit?: number;
+  },
+): Promise<SearchResponse> {
+  const params = new URLSearchParams({ q });
+  if (options?.scope) params.set("scope", options.scope);
+  if (options?.workflowId) params.set("workflowId", options.workflowId);
+  if (options?.field) params.set("field", options.field);
+  if (options?.from) params.set("from", options.from);
+  if (options?.to) params.set("to", options.to);
+  if (options?.limit) params.set("limit", String(options.limit));
+  const res = await fetch(`${API_BASE}/search?${params}`);
+  if (!res.ok) throw new ApiError("Search failed", res.status);
+  return res.json();
+}
+
+export async function getBreadcrumbs(
+  workflowId: string,
+  stepPath: string,
+): Promise<BreadcrumbsResponse> {
+  const params = new URLSearchParams({ stepPath });
+  const res = await fetch(
+    `${API_BASE}/workflows/${workflowId}/breadcrumbs?${params}`,
+  );
+  if (!res.ok) throw new ApiError("Failed to fetch breadcrumbs", res.status);
   return res.json();
 }
 

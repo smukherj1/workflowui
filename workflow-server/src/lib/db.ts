@@ -1,6 +1,6 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import { eq, and, isNull, sql, like, or } from "drizzle-orm";
+import { eq, and, isNull, sql, like, or, ilike, gte, lte } from "drizzle-orm";
 import { workflows, steps, stepDependencies, stepLogs } from "./schema.js";
 import type { WorkflowInput, FlatStep } from "./types.js";
 import type { StepInput } from "./types.js";
@@ -335,6 +335,154 @@ export async function getStepByUuid(stepUuid: string) {
   if (!detail) return null;
 
   return { workflowId: step.workflowId, ...detail };
+}
+
+export async function getBreadcrumbsByPath(
+  workflowId: string,
+  stepPath: string,
+) {
+  const parts = stepPath.split("/").filter(Boolean);
+  const breadcrumbs: { uuid: string; name: string; hierarchyPath: string }[] =
+    [];
+  let currentPath = "";
+  for (const part of parts) {
+    currentPath += `/${part}`;
+    const [ancestor] = await db
+      .select({ id: steps.id, name: steps.name, hierarchyPath: steps.hierarchyPath })
+      .from(steps)
+      .where(
+        and(
+          eq(steps.workflowId, workflowId),
+          eq(steps.hierarchyPath, currentPath),
+        ),
+      )
+      .limit(1);
+    if (ancestor) {
+      breadcrumbs.push({
+        uuid: ancestor.id,
+        name: ancestor.name,
+        hierarchyPath: ancestor.hierarchyPath,
+      });
+    }
+  }
+  return breadcrumbs;
+}
+
+export async function searchWorkflows(
+  q: string,
+  field: string | null,
+  from: Date | null,
+  to: Date | null,
+  limit: number,
+) {
+  const term = `%${q}%`;
+
+  const searchCond =
+    field === "name"
+      ? ilike(workflows.name, term)
+      : field === "uri"
+        ? ilike(workflows.uri, term)
+        : field === "pin"
+          ? ilike(workflows.pin, term)
+          : or(
+              ilike(workflows.name, term),
+              ilike(workflows.uri, term),
+              ilike(workflows.pin, term),
+            );
+
+  const conditions = [searchCond!];
+  if (from) conditions.push(gte(workflows.startTime, from));
+  if (to) conditions.push(lte(workflows.startTime, to));
+
+  const rows = await db
+    .select()
+    .from(workflows)
+    .where(and(...conditions))
+    .limit(limit);
+
+  return rows.map((wf) => ({
+    type: "workflow" as const,
+    workflowId: wf.id,
+    name: wf.name,
+    uri: wf.uri,
+    pin: wf.pin,
+    status: wf.status,
+    startTime: wf.startTime?.toISOString() ?? null,
+    uploadedAt: wf.uploadedAt.toISOString(),
+  }));
+}
+
+export async function searchSteps(
+  q: string,
+  workflowId: string | null,
+  field: string | null,
+  from: Date | null,
+  to: Date | null,
+  limit: number,
+) {
+  const term = `%${q}%`;
+
+  const searchCond =
+    field === "name"
+      ? ilike(steps.name, term)
+      : field === "uri"
+        ? ilike(steps.uri, term)
+        : field === "pin"
+          ? ilike(steps.pin, term)
+          : field === "path"
+            ? ilike(steps.hierarchyPath, term)
+            : or(
+                ilike(steps.name, term),
+                ilike(steps.uri, term),
+                ilike(steps.pin, term),
+              );
+
+  const conditions = [searchCond!];
+  if (workflowId) conditions.push(eq(steps.workflowId, workflowId));
+  if (from) conditions.push(gte(steps.startTime, from));
+  if (to) conditions.push(lte(steps.startTime, to));
+
+  const rows = await db
+    .select({
+      id: steps.id,
+      workflowId: steps.workflowId,
+      name: steps.name,
+      uri: steps.uri,
+      pin: steps.pin,
+      status: steps.status,
+      hierarchyPath: steps.hierarchyPath,
+      startTime: steps.startTime,
+    })
+    .from(steps)
+    .where(and(...conditions))
+    .limit(limit);
+
+  if (rows.length === 0) return [];
+
+  // Fetch workflow names for results
+  const wfIds = Array.from(new Set(rows.map((r) => r.workflowId)));
+  const wfRows = await db
+    .select({ id: workflows.id, name: workflows.name })
+    .from(workflows)
+    .where(
+      wfIds.length === 1
+        ? eq(workflows.id, wfIds[0])
+        : sql`${workflows.id} = ANY(ARRAY[${sql.join(wfIds.map((id) => sql`${id}::uuid`), sql`, `)}])`,
+    );
+  const wfNameMap = new Map(wfRows.map((w) => [w.id, w.name]));
+
+  return rows.map((s) => ({
+    type: "step" as const,
+    workflowId: s.workflowId,
+    workflowName: wfNameMap.get(s.workflowId) ?? "",
+    uuid: s.id,
+    name: s.name,
+    uri: s.uri,
+    pin: s.pin,
+    status: s.status,
+    hierarchyPath: s.hierarchyPath,
+    startTime: s.startTime?.toISOString() ?? null,
+  }));
 }
 
 export async function getLogs(
