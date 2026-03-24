@@ -8,14 +8,14 @@ The frontend is a single-page application that lets users upload workflow JSON f
 
 ## Tech Stack
 
-| Library                      | Purpose                                                      |
-| ---------------------------- | ------------------------------------------------------------ |
-| Vite + React 18 (TypeScript) | SPA build & runtime (built with Bun)                         |
-| React Router v7              | Client-side routing with nested layout routes                |
-| React Flow v11               | DAG canvas with pan/zoom, custom nodes, and edge styling     |
-| dagre                        | Automatic DAG layout (topological top-to-bottom)             |
-| Zustand                      | Lightweight global UI state                                  |
-| TanStack Query v5            | Data fetching and caching                                    |
+| Library                      | Purpose                                                  |
+| ---------------------------- | -------------------------------------------------------- |
+| Vite + React 18 (TypeScript) | SPA build & runtime (built with Bun)                     |
+| React Router v7              | Client-side routing with nested layout routes            |
+| React Flow v11               | DAG canvas with pan/zoom, custom nodes, and edge styling |
+| dagre                        | Automatic DAG layout (topological top-to-bottom)         |
+| Zustand                      | Lightweight global UI state                              |
+| TanStack Query v5            | Data fetching and caching                                |
 
 Styling uses inline styles throughout. No CSS framework is used.
 
@@ -123,6 +123,7 @@ TanStack Query owns all server state. Zustand holds only UI state that isn't der
 ### `UploadPage` — `src/pages/UploadPage.tsx`
 
 Landing page. Renders a centered layout with:
+
 1. A title and tagline
 2. `UploadForm` for uploading workflow JSON files
 3. `NavigateForm` for navigating to a workflow or step by ID
@@ -184,6 +185,7 @@ A centered modal overlay for searching workflows and steps. Props:
 - `workflowId?` — when set, default search scope is `"steps"` within that workflow; otherwise scope is `"all"`
 
 Behavior:
+
 - Auto-focuses the text input on open (50 ms delay to allow mount)
 - Registers a global `keydown` listener for Escape while open
 - Debounces API calls (200 ms) to `GET /api/search` as the user types
@@ -231,6 +233,7 @@ Used in `StepNode`, `StepCard`, `LeafDetail`, `InfoCard`, and `WorkflowHeader`.
 Fetches all steps for the current hierarchy level in a single request using `useQuery(['steps', workflowId, parentId])`. No cursor or pagination at the server level.
 
 Rendering decision after data loads:
+
 - If total step count > `GRID_THRESHOLD` **or** `viewMode === 'grid'`: renders `GridFallback`
 - Otherwise: renders `GraphView` with the filtered steps and their dependency edges
 
@@ -253,6 +256,7 @@ React Flow's required CSS (`reactflow/dist/style.css`) is imported inside `Graph
 Custom React Flow node. Displays a `StatusBadge`, the step name (truncated to 30 chars with the full name in a `title` tooltip), elapsed time from `formatElapsed`, and a "N steps" child count badge when `childCount > 0`.
 
 Click behavior (implemented in the node's `onClick`):
+
 - **Non-leaf step**: navigates to `/workflows/:workflowId/steps/:uuid` via React Router
 - **Leaf step**: navigates to `/workflows/:workflowId/logs?stepPath=<hierarchyPath>` to view the step's logs in the dedicated log viewer
 
@@ -273,6 +277,7 @@ Fetches step detail via `useQuery(['stepDetail', workflowId, uuid], staleTime: I
 On load, calls `setStepBreadcrumbs(breadcrumbs)` from the Zustand store so `WorkflowLayout` renders the full unified breadcrumb bar. Step breadcrumbs are no longer rendered inside `StepView`.
 
 Content:
+
 - **`InfoCard`** displaying the step's metadata (name, URI, pin, start/end times, duration)
 - **Non-leaf step**: renders `GraphContainer` with `parentId=uuid` and `parentPath=step.hierarchyPath`
 - **Leaf step**: renders `LeafDetail`
@@ -286,6 +291,7 @@ Metadata table for a leaf step: status, hierarchy path, and depth. A prominent "
 A standalone full-page route (`/workflows/:workflowId/logs?stepPath=`) for viewing logs. Not nested under `WorkflowLayout` — it has its own minimal header with a back link to the workflow root.
 
 Features:
+
 - **Full viewport**: the log content area fills the entire viewport below a compact header
 - **Breadcrumb navigation**: calls `getBreadcrumbs(workflowId, stepPath)` and renders a `[data-testid="logs-breadcrumb-nav"]` bar showing `WorkflowName > Ancestor... > CurrentStep > Logs`. Workflow name and ancestor steps are clickable links; the current step name and the "Logs" label are plain text. Only rendered when `stepPath` is not `/`.
 - **Search trigger**: a `[data-testid="search-trigger"]` button in the header and a `CommandPalette` (scoped to the current workflow's steps) are available. Ctrl/Cmd+K also opens the palette.
@@ -318,6 +324,7 @@ The user enters a workflow ID or step UUID in the `NavigateForm` on the landing 
 ### Log Viewer Flow
 
 The user navigates to the dedicated log viewer from:
+
 - The "View Logs" link in `GraphContainer` (merged logs for a hierarchy level)
 - The "View Logs" link in `LeafDetail` (logs for a specific leaf step)
 - Clicking a leaf `StepNode` in the graph (navigates directly to the log viewer for that step)
@@ -338,9 +345,9 @@ Clicking the workflow name navigates to `/workflows/:workflowId`. Clicking an an
 A `CommandPalette` overlay is accessible from `WorkflowHeader` (within any workflow or step view) and from `LogsPage`. It opens via the 🔍 search trigger button or Ctrl/Cmd+K.
 
 - **Within a workflow view**: `workflowId` is passed to `CommandPalette`, so the default search scope is `"steps"` within that workflow. Results navigate to `/workflows/:id/steps/:uuid`.
-- **On the landing page**: not yet wired in; `NavigateForm` handles exact-ID lookup.
+- **On the landing page**: `ComandPalette` without `workflowId` results in searches scoped to both workflows and steps; `NavigateForm` handles exact-ID lookup.
 
-As the user types, requests are debounced (200 ms) to `GET /api/search`. Results are rendered with a status badge, name, and hierarchy path or URI. Arrow keys navigate the list; Enter or click selects. Escape or clicking the backdrop closes the palette.
+As the user types, requests are debounced (400 ms) to `GET /api/search`. Results are rendered with a status badge, name, and hierarchy path or URI. Arrow keys navigate the list; Enter or click selects. Escape or clicking the backdrop closes the palette.
 
 ### Home Navigation Flow
 
@@ -358,18 +365,18 @@ When a hierarchy level exceeds 50 steps (`GRID_THRESHOLD`), `GraphContainer` swi
 
 ## Error & Loading States
 
-| State                          | Component        | Behavior                                              |
-| ------------------------------ | ---------------- | ----------------------------------------------------- |
-| Workflow fetch loading         | `WorkflowLayout` | Full-viewport "Loading workflow..." overlay           |
-| Workflow not found             | `WorkflowLayout` | "Workflow not found" with link to upload page         |
-| Steps fetch loading            | `GraphContainer` | Centered "Loading steps..." message                   |
-| Steps fetch error              | `GraphContainer` | Error message with retry button                       |
-| Log fetch loading              | `LogsPage`       | "Loading logs..." message in log body                 |
-| Empty steps at level           | `GraphContainer` | "No steps at this level." message                     |
-| Upload in progress             | `UploadForm`     | Drop zone shows spinner and "Uploading..." text       |
-| Upload error (API 400)         | `UploadForm`     | Error box with `details` array from API response      |
-| Upload error (network/5xx)     | `UploadForm`     | Generic error message                                 |
-| Navigate ID not found          | `NavigateForm`   | Inline error "Workflow/step not found"                |
+| State                      | Component        | Behavior                                         |
+| -------------------------- | ---------------- | ------------------------------------------------ |
+| Workflow fetch loading     | `WorkflowLayout` | Full-viewport "Loading workflow..." overlay      |
+| Workflow not found         | `WorkflowLayout` | "Workflow not found" with link to upload page    |
+| Steps fetch loading        | `GraphContainer` | Centered "Loading steps..." message              |
+| Steps fetch error          | `GraphContainer` | Error message with retry button                  |
+| Log fetch loading          | `LogsPage`       | "Loading logs..." message in log body            |
+| Empty steps at level       | `GraphContainer` | "No steps at this level." message                |
+| Upload in progress         | `UploadForm`     | Drop zone shows spinner and "Uploading..." text  |
+| Upload error (API 400)     | `UploadForm`     | Error box with `details` array from API response |
+| Upload error (network/5xx) | `UploadForm`     | Generic error message                            |
+| Navigate ID not found      | `NavigateForm`   | Inline error "Workflow/step not found"           |
 
 ---
 

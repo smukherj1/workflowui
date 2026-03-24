@@ -59,7 +59,7 @@ export default function CommandPalette({ open, onClose, workflowId }: Props) {
       } finally {
         setLoading(false);
       }
-    }, 200);
+    }, 400);
   }, [query, open, workflowId]);
 
   const navigateToResult = useCallback(
@@ -90,7 +90,9 @@ export default function CommandPalette({ open, onClose, workflowId }: Props) {
 
   if (!open) return null;
 
-  const placeholder = workflowId ? "Search steps..." : "Search workflows and steps...";
+  const placeholder = workflowId
+    ? "Search steps..."
+    : "Search workflows and steps...";
 
   return (
     <div
@@ -221,7 +223,7 @@ export default function CommandPalette({ open, onClose, workflowId }: Props) {
                 >
                   {result.type === "step"
                     ? `${result.workflowName} • ${result.hierarchyPath}`
-                    : result.uri ?? result.pin ?? "workflow"}
+                    : (result.uri ?? result.pin ?? "workflow")}
                 </div>
               </div>
               <span

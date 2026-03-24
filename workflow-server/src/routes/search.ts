@@ -8,7 +8,7 @@ const router = new Hono();
 const querySchema = z.object({
   q: z.string().min(1),
   scope: z.enum(["workflows", "steps", "all"]).optional().default("all"),
-  workflowId: z.string().uuid().optional(),
+  workflowId: z.uuid().optional(),
   field: z.enum(["name", "uri", "pin", "path"]).optional(),
   from: z.string().optional(),
   to: z.string().optional(),
@@ -27,7 +27,13 @@ router.get("/", zValidator("query", querySchema), async (c) => {
   if (scope === "workflows" || scope === "all") {
     // path field is step-specific; ignore it for workflow search
     const wfField = field === "path" ? null : (field ?? null);
-    const wfResults = await searchWorkflows(q, wfField, fromDate, toDate, limit);
+    const wfResults = await searchWorkflows(
+      q,
+      wfField,
+      fromDate,
+      toDate,
+      limit,
+    );
     results.push(...wfResults);
   }
 
