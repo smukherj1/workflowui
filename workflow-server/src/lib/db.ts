@@ -368,6 +368,21 @@ export async function getBreadcrumbsByPath(
   return breadcrumbs;
 }
 
+function workflowFieldCond(field: string | null, term: string) {
+  if (field === "name") return ilike(workflows.name, term);
+  if (field === "uri") return ilike(workflows.uri, term);
+  if (field === "pin") return ilike(workflows.pin, term);
+  return or(ilike(workflows.name, term), ilike(workflows.uri, term), ilike(workflows.pin, term));
+}
+
+function stepFieldCond(field: string | null, term: string) {
+  if (field === "name") return ilike(steps.name, term);
+  if (field === "uri") return ilike(steps.uri, term);
+  if (field === "pin") return ilike(steps.pin, term);
+  if (field === "path") return ilike(steps.hierarchyPath, term);
+  return or(ilike(steps.name, term), ilike(steps.uri, term), ilike(steps.pin, term));
+}
+
 export async function searchWorkflows(
   q: string,
   field: string | null,
@@ -377,18 +392,7 @@ export async function searchWorkflows(
 ) {
   const term = `%${q}%`;
 
-  const searchCond =
-    field === "name"
-      ? ilike(workflows.name, term)
-      : field === "uri"
-        ? ilike(workflows.uri, term)
-        : field === "pin"
-          ? ilike(workflows.pin, term)
-          : or(
-              ilike(workflows.name, term),
-              ilike(workflows.uri, term),
-              ilike(workflows.pin, term),
-            );
+  const searchCond = workflowFieldCond(field, term);
 
   const conditions = [searchCond!];
   if (from) conditions.push(gte(workflows.startTime, from));
@@ -422,20 +426,7 @@ export async function searchSteps(
 ) {
   const term = `%${q}%`;
 
-  const searchCond =
-    field === "name"
-      ? ilike(steps.name, term)
-      : field === "uri"
-        ? ilike(steps.uri, term)
-        : field === "pin"
-          ? ilike(steps.pin, term)
-          : field === "path"
-            ? ilike(steps.hierarchyPath, term)
-            : or(
-                ilike(steps.name, term),
-                ilike(steps.uri, term),
-                ilike(steps.pin, term),
-              );
+  const searchCond = stepFieldCond(field, term);
 
   const conditions = [searchCond!];
   if (workflowId) conditions.push(eq(steps.workflowId, workflowId));
@@ -446,6 +437,7 @@ export async function searchSteps(
     .select({
       id: steps.id,
       workflowId: steps.workflowId,
+      workflowName: workflows.name,
       name: steps.name,
       uri: steps.uri,
       pin: steps.pin,
@@ -454,27 +446,14 @@ export async function searchSteps(
       startTime: steps.startTime,
     })
     .from(steps)
+    .innerJoin(workflows, eq(steps.workflowId, workflows.id))
     .where(and(...conditions))
     .limit(limit);
-
-  if (rows.length === 0) return [];
-
-  // Fetch workflow names for results
-  const wfIds = Array.from(new Set(rows.map((r) => r.workflowId)));
-  const wfRows = await db
-    .select({ id: workflows.id, name: workflows.name })
-    .from(workflows)
-    .where(
-      wfIds.length === 1
-        ? eq(workflows.id, wfIds[0])
-        : sql`${workflows.id} = ANY(ARRAY[${sql.join(wfIds.map((id) => sql`${id}::uuid`), sql`, `)}])`,
-    );
-  const wfNameMap = new Map(wfRows.map((w) => [w.id, w.name]));
 
   return rows.map((s) => ({
     type: "step" as const,
     workflowId: s.workflowId,
-    workflowName: wfNameMap.get(s.workflowId) ?? "",
+    workflowName: s.workflowName,
     uuid: s.id,
     name: s.name,
     uri: s.uri,
