@@ -5,12 +5,14 @@
     "typecheck": "tsc --noEmit",
     "test:e2e-backend": "tsc --noEmit && bun test ./tests/e2e-tests-backend.ts",
     "test:e2e-frontend": "tsc --noEmit && bun test ./tests/e2e-tests-frontend.ts",
-    "upload-test-workflows": "tsc --noEmit && bun run ./scripts/upload-test-workflows.ts"
+    "upload-test-workflows": "tsc --noEmit && bun run ./scripts/upload-test-workflows.ts",
+    "format": "bunx prettier . --write"
   },
   "devDependencies": {
     "@types/bun": "^1.3.11",
     "@types/node": "^20.10.0",
     "playwright": "^1.58.2",
+    "prettier": "3.8.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
   }

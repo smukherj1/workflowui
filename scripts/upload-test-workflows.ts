@@ -6,7 +6,11 @@ const API_BASE = process.env.API_URL ?? "http://localhost:3001";
 const DATA_DIR = path.join(import.meta.dir, "../tests/data");
 
 // Only upload valid workflow fixtures (skip invalid-* files)
-const SKIP = new Set(["invalid-json.json", "invalid-schema.json", "invalid-cycle.json"]);
+const SKIP = new Set([
+  "invalid-json.json",
+  "invalid-schema.json",
+  "invalid-cycle.json",
+]);
 
 const files = fs
   .readdirSync(DATA_DIR)

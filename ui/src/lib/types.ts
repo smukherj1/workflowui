@@ -1,4 +1,9 @@
-export type StepStatus = "passed" | "failed" | "running" | "skipped" | "cancelled";
+export type StepStatus =
+  | "passed"
+  | "failed"
+  | "running"
+  | "skipped"
+  | "cancelled";
 
 export interface Metadata {
   name: string;

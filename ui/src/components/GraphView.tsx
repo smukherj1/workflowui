@@ -18,7 +18,11 @@ const nodeTypes = { stepNode: StepNode };
 const NODE_WIDTH = 220;
 const NODE_HEIGHT = 70;
 
-function buildDagreLayout(steps: Step[], dependencies: Dependency[], parentPath: string) {
+function buildDagreLayout(
+  steps: Step[],
+  dependencies: Dependency[],
+  parentPath: string,
+) {
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
   g.setGraph({ rankdir: "TB", nodesep: 60, ranksep: 100 });
@@ -34,7 +38,9 @@ function buildDagreLayout(steps: Step[], dependencies: Dependency[], parentPath:
 
   const nodes: Node[] = steps.map((step) => {
     const pos = g.node(step.uuid);
-    const hierarchyPath = parentPath ? `${parentPath}/${step.stepId}` : `/${step.stepId}`;
+    const hierarchyPath = parentPath
+      ? `${parentPath}/${step.stepId}`
+      : `/${step.stepId}`;
     return {
       id: step.uuid,
       type: "stepNode",
@@ -56,7 +62,10 @@ function buildDagreLayout(steps: Step[], dependencies: Dependency[], parentPath:
       source: dep.from,
       target: dep.to,
       style: { stroke: isFailed ? "#ef4444" : "#475569", strokeWidth: 2 },
-      markerEnd: { type: MarkerType.ArrowClosed, color: isFailed ? "#ef4444" : "#475569" },
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        color: isFailed ? "#ef4444" : "#475569",
+      },
       animated: target?.status === "running",
     };
   });

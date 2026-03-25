@@ -1,0 +1,6 @@
+tests/data/*
+bun.lock
+**/bun.lock
+**/dist/
+**/node_modules/
+node_modules/

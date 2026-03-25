@@ -713,7 +713,9 @@ describe("GET /api/search", () => {
   });
 
   test("limit caps number of results returned", async () => {
-    const { status, json } = await get(`/api/search?q=step&scope=steps&limit=3`);
+    const { status, json } = await get(
+      `/api/search?q=step&scope=steps&limit=3`,
+    );
     const body = json as Record<string, unknown>;
     expect(status).toBe(200);
     const results = body.results as Record<string, unknown>[];
@@ -751,8 +753,10 @@ describe("GET /api/search", () => {
   test("search is case-insensitive", async () => {
     const { json: lower } = await get(`/api/search?q=checkout&scope=steps`);
     const { json: upper } = await get(`/api/search?q=CHECKOUT&scope=steps`);
-    const lowerResults = (lower as Record<string, unknown>).results as unknown[];
-    const upperResults = (upper as Record<string, unknown>).results as unknown[];
+    const lowerResults = (lower as Record<string, unknown>)
+      .results as unknown[];
+    const upperResults = (upper as Record<string, unknown>)
+      .results as unknown[];
     expect(lowerResults.length).toBe(upperResults.length);
   });
 
@@ -819,9 +823,7 @@ describe("GET /api/workflows/:id/breadcrumbs", () => {
   });
 
   test("missing stepPath returns 400", async () => {
-    const { status } = await get(
-      `/api/workflows/${workflowId}/breadcrumbs`,
-    );
+    const { status } = await get(`/api/workflows/${workflowId}/breadcrumbs`);
     expect(status).toBe(400);
   });
 });

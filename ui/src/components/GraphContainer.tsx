@@ -141,10 +141,7 @@ export default function GraphContainer({
       </div>
       <div style={{ flex: 1, minHeight: 0 }}>
         {useGrid ? (
-          <GridFallback
-            steps={filteredSteps}
-            parentPath={parentPath}
-          />
+          <GridFallback steps={filteredSteps} parentPath={parentPath} />
         ) : (
           <GraphView
             steps={filteredSteps}

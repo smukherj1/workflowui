@@ -89,9 +89,7 @@ export default function GridFallback({ steps, parentPath }: Props) {
         ))}
       </div>
       {filtered.length === 0 && (
-        <div
-          style={{ color: "#64748b", textAlign: "center", padding: "2rem" }}
-        >
+        <div style={{ color: "#64748b", textAlign: "center", padding: "2rem" }}>
           No steps match the current filters.
         </div>
       )}

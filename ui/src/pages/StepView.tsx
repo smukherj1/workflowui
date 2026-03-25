@@ -58,10 +58,7 @@ export default function StepView() {
         }}
       >
         <span>Step not found.</span>
-        <Link
-          to={`/workflows/${workflowId}`}
-          style={{ color: "#60a5fa" }}
-        >
+        <Link to={`/workflows/${workflowId}`} style={{ color: "#60a5fa" }}>
           Back to workflow
         </Link>
       </div>
@@ -78,7 +75,15 @@ export default function StepView() {
   };
 
   return (
-    <div style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.5rem", height: "100%" }}>
+    <div
+      style={{
+        padding: "1rem",
+        display: "flex",
+        flexDirection: "column",
+        gap: "0.5rem",
+        height: "100%",
+      }}
+    >
       <InfoCard metadata={metadata} />
       {step.isLeaf ? (
         <LeafDetail step={step} workflowId={workflowId!} />

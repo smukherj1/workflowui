@@ -8,7 +8,8 @@ export default function NavigateForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const UUID_RE =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -38,7 +39,13 @@ export default function NavigateForm() {
   return (
     <form
       onSubmit={handleSubmit}
-      style={{ display: "flex", flexDirection: "column", gap: "0.5rem", width: "100%", maxWidth: 480 }}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "0.5rem",
+        width: "100%",
+        maxWidth: 480,
+      }}
     >
       <div style={{ display: "flex", gap: "0.5rem" }}>
         <input

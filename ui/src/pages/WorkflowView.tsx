@@ -24,7 +24,15 @@ export default function WorkflowView() {
   };
 
   return (
-    <div style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.5rem", height: "100%" }}>
+    <div
+      style={{
+        padding: "1rem",
+        display: "flex",
+        flexDirection: "column",
+        gap: "0.5rem",
+        height: "100%",
+      }}
+    >
       <InfoCard metadata={metadata} />
       <div style={{ flex: 1, minHeight: 0 }}>
         <GraphContainer workflowId={workflowId!} parentPath="" />

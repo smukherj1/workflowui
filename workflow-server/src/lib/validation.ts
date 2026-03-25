@@ -11,7 +11,13 @@ const metadataSchema = z.object({
   endTime: z.string().optional(),
 });
 
-const stepStatuses = ["passed", "failed", "running", "skipped", "cancelled"] as const;
+const stepStatuses = [
+  "passed",
+  "failed",
+  "running",
+  "skipped",
+  "cancelled",
+] as const;
 
 const logEntrySchema = z.object({
   content: z.string(),
@@ -65,7 +71,9 @@ function detectCycle(steps: StepInput[]): string | null {
     }
   }
 
-  const queue = steps.filter((s) => (inDegree[s.id] ?? 0) === 0).map((s) => s.id);
+  const queue = steps
+    .filter((s) => (inDegree[s.id] ?? 0) === 0)
+    .map((s) => s.id);
   let visited = 0;
   while (queue.length > 0) {
     const node = queue.shift()!;

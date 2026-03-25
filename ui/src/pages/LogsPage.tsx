@@ -50,7 +50,9 @@ export default function LogsPage() {
 
   const lines = data?.lines ?? [];
   const filteredLines = filter
-    ? lines.filter((l) => l.content.toLowerCase().includes(filter.toLowerCase()))
+    ? lines.filter((l) =>
+        l.content.toLowerCase().includes(filter.toLowerCase()),
+      )
     : lines;
   const showTimestamp = lines.some((l) => l.timestamp !== null);
 
@@ -96,13 +98,29 @@ export default function LogsPage() {
           flexWrap: "wrap",
         }}
       >
-        <Link to="/" style={{ color: "#60a5fa", textDecoration: "none", fontWeight: 700, fontSize: "0.9rem" }}>
+        <Link
+          to="/"
+          style={{
+            color: "#60a5fa",
+            textDecoration: "none",
+            fontWeight: 700,
+            fontSize: "0.9rem",
+          }}
+        >
           WorkflowUI
         </Link>
         {workflow && (
-          <span style={{ color: "#94a3b8", fontSize: "0.9rem" }}>{workflow.name}</span>
+          <span style={{ color: "#94a3b8", fontSize: "0.9rem" }}>
+            {workflow.name}
+          </span>
         )}
-        <span style={{ fontFamily: "monospace", fontSize: "0.8rem", color: "#64748b" }}>
+        <span
+          style={{
+            fontFamily: "monospace",
+            fontSize: "0.8rem",
+            color: "#64748b",
+          }}
+        >
           {stepPath}
         </span>
 
@@ -140,7 +158,12 @@ export default function LogsPage() {
 
         <Link
           to={`/workflows/${workflowId}`}
-          style={{ marginLeft: "auto", color: "#60a5fa", fontSize: "0.875rem", textDecoration: "none" }}
+          style={{
+            marginLeft: "auto",
+            color: "#60a5fa",
+            fontSize: "0.875rem",
+            textDecoration: "none",
+          }}
         >
           ← Back to workflow
         </Link>
@@ -151,10 +174,16 @@ export default function LogsPage() {
         <Breadcrumbs
           data-testid="logs-breadcrumb-nav"
           items={[
-            { label: workflow?.name ?? workflowId!, href: `/workflows/${workflowId}` },
+            {
+              label: workflow?.name ?? workflowId!,
+              href: `/workflows/${workflowId}`,
+            },
             ...breadcrumbs.map((crumb, i) => ({
               label: crumb.name,
-              href: i < breadcrumbs.length - 1 ? `/workflows/${workflowId}/steps/${crumb.uuid}` : undefined,
+              href:
+                i < breadcrumbs.length - 1
+                  ? `/workflows/${workflowId}/steps/${crumb.uuid}`
+                  : undefined,
             })),
             { label: "Logs", color: "#94a3b8" },
           ]}
@@ -162,7 +191,14 @@ export default function LogsPage() {
       )}
 
       {/* Filter bar */}
-      <div style={{ padding: "0.5rem 1.25rem", background: "#0f172a", borderBottom: "1px solid #1e293b", flexShrink: 0 }}>
+      <div
+        style={{
+          padding: "0.5rem 1.25rem",
+          background: "#0f172a",
+          borderBottom: "1px solid #1e293b",
+          flexShrink: 0,
+        }}
+      >
         <input
           placeholder="Filter logs..."
           value={filter}
@@ -183,17 +219,33 @@ export default function LogsPage() {
       {/* Log content */}
       <div style={{ flex: 1, overflow: "auto", padding: "0.5rem 1.25rem" }}>
         {isLoading && (
-          <div style={{ color: "#64748b", fontFamily: "monospace", fontSize: "0.8rem" }}>
+          <div
+            style={{
+              color: "#64748b",
+              fontFamily: "monospace",
+              fontSize: "0.8rem",
+            }}
+          >
             Loading logs...
           </div>
         )}
         {!isLoading && filteredLines.length === 0 && (
-          <div style={{ color: "#64748b", fontFamily: "monospace", fontSize: "0.8rem" }}>
+          <div
+            style={{
+              color: "#64748b",
+              fontFamily: "monospace",
+              fontSize: "0.8rem",
+            }}
+          >
             No logs found.
           </div>
         )}
         {filteredLines.map((line, i) => (
-          <LogLineComponent key={`${pageIndex}-${i}`} line={line} showTimestamp={showTimestamp} />
+          <LogLineComponent
+            key={`${pageIndex}-${i}`}
+            line={line}
+            showTimestamp={showTimestamp}
+          />
         ))}
       </div>
 

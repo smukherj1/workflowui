@@ -150,8 +150,14 @@ export async function insertWorkflow(
       await tx.execute(
         sql`UPDATE steps SET parent_step_id = u.parent_uuid
             FROM unnest(
-              ARRAY[${sql.join(cUuids.map((id) => sql`${id}::uuid`), sql`, `)}],
-              ARRAY[${sql.join(pUuids.map((id) => sql`${id}::uuid`), sql`, `)}]
+              ARRAY[${sql.join(
+                cUuids.map((id) => sql`${id}::uuid`),
+                sql`, `,
+              )}],
+              ARRAY[${sql.join(
+                pUuids.map((id) => sql`${id}::uuid`),
+                sql`, `,
+              )}]
             ) AS u(child_uuid, parent_uuid)
             WHERE steps.id = u.child_uuid`,
       );
@@ -256,7 +262,10 @@ export async function getStepsAtLevel(
       .from(stepDependencies)
       .where(
         and(
-          sql`${stepDependencies.stepUuid} = ANY(${sql`ARRAY[${sql.join(stepIds.map((id) => sql`${id}::uuid`), sql`, `)}]`})`,
+          sql`${stepDependencies.stepUuid} = ANY(${sql`ARRAY[${sql.join(
+            stepIds.map((id) => sql`${id}::uuid`),
+            sql`, `,
+          )}]`})`,
         ),
       );
     for (const d of depRows) {
@@ -299,7 +308,12 @@ export async function getStepDetail(workflowId: string, stepUuid: string) {
     const [ancestor] = await db
       .select({ id: steps.id, name: steps.name })
       .from(steps)
-      .where(and(eq(steps.workflowId, workflowId), eq(steps.hierarchyPath, currentPath)))
+      .where(
+        and(
+          eq(steps.workflowId, workflowId),
+          eq(steps.hierarchyPath, currentPath),
+        ),
+      )
       .limit(1);
     if (ancestor) breadcrumbs.push({ uuid: ancestor.id, name: ancestor.name });
   }
@@ -348,7 +362,11 @@ export async function getBreadcrumbsByPath(
   for (const part of parts) {
     currentPath += `/${part}`;
     const [ancestor] = await db
-      .select({ id: steps.id, name: steps.name, hierarchyPath: steps.hierarchyPath })
+      .select({
+        id: steps.id,
+        name: steps.name,
+        hierarchyPath: steps.hierarchyPath,
+      })
       .from(steps)
       .where(
         and(
@@ -372,7 +390,11 @@ function workflowFieldCond(field: string | null, term: string) {
   if (field === "name") return ilike(workflows.name, term);
   if (field === "uri") return ilike(workflows.uri, term);
   if (field === "pin") return ilike(workflows.pin, term);
-  return or(ilike(workflows.name, term), ilike(workflows.uri, term), ilike(workflows.pin, term));
+  return or(
+    ilike(workflows.name, term),
+    ilike(workflows.uri, term),
+    ilike(workflows.pin, term),
+  );
 }
 
 function stepFieldCond(field: string | null, term: string) {
@@ -380,7 +402,11 @@ function stepFieldCond(field: string | null, term: string) {
   if (field === "uri") return ilike(steps.uri, term);
   if (field === "pin") return ilike(steps.pin, term);
   if (field === "path") return ilike(steps.hierarchyPath, term);
-  return or(ilike(steps.name, term), ilike(steps.uri, term), ilike(steps.pin, term));
+  return or(
+    ilike(steps.name, term),
+    ilike(steps.uri, term),
+    ilike(steps.pin, term),
+  );
 }
 
 export async function searchWorkflows(
@@ -491,7 +517,10 @@ export async function getLogs(
       and(
         eq(steps.workflowId, workflowId),
         eq(steps.isLeaf, true),
-        or(eq(steps.hierarchyPath, exactPath), like(steps.hierarchyPath, prefixPath)),
+        or(
+          eq(steps.hierarchyPath, exactPath),
+          like(steps.hierarchyPath, prefixPath),
+        ),
       ),
     )
     .orderBy(steps.sortOrder, stepLogs.lineNumber);

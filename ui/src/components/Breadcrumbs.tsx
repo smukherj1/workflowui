@@ -11,7 +11,10 @@ interface BreadcrumbsProps {
   "data-testid"?: string;
 }
 
-export default function Breadcrumbs({ items, "data-testid": testId }: BreadcrumbsProps) {
+export default function Breadcrumbs({
+  items,
+  "data-testid": testId,
+}: BreadcrumbsProps) {
   return (
     <nav
       data-testid={testId}
@@ -33,13 +36,14 @@ export default function Breadcrumbs({ items, "data-testid": testId }: Breadcrumb
         >
           {i > 0 && <span style={{ color: "#475569" }}>&gt;</span>}
           {item.href ? (
-            <Link to={item.href} style={{ color: "#60a5fa", textDecoration: "none" }}>
+            <Link
+              to={item.href}
+              style={{ color: "#60a5fa", textDecoration: "none" }}
+            >
               {item.label}
             </Link>
           ) : (
-            <span style={{ color: item.color ?? "#e2e8f0" }}>
-              {item.label}
-            </span>
+            <span style={{ color: item.color ?? "#e2e8f0" }}>{item.label}</span>
           )}
         </span>
       ))}

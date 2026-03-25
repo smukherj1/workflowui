@@ -59,7 +59,9 @@ export default function StatusFilterBar() {
           >
             <input
               type="checkbox"
-              checked={statusFilter.length === 0 || statusFilter.includes(status)}
+              checked={
+                statusFilter.length === 0 || statusFilter.includes(status)
+              }
               onChange={() => toggle(status)}
               style={{ accentColor: statusColors[status] }}
             />

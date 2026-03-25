@@ -13,13 +13,17 @@ export default function StepCard({ step, parentPath }: Props) {
   const { workflowId } = useParams<{ workflowId: string }>();
 
   const elapsed = formatElapsed(step.startTime, step.endTime);
-  const hierarchyPath = parentPath ? `${parentPath}/${step.stepId}` : `/${step.stepId}`;
+  const hierarchyPath = parentPath
+    ? `${parentPath}/${step.stepId}`
+    : `/${step.stepId}`;
 
   function handleClick() {
     if (!step.isLeaf) {
       navigate(`/workflows/${workflowId}/steps/${step.uuid}`);
     } else {
-      navigate(`/workflows/${workflowId}/logs?stepPath=${encodeURIComponent(hierarchyPath)}`);
+      navigate(
+        `/workflows/${workflowId}/logs?stepPath=${encodeURIComponent(hierarchyPath)}`,
+      );
     }
   }
 

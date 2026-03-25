@@ -52,7 +52,11 @@ export async function uploadWorkflow(
   console.log(`Upload file ${file.name} completed with status ${res.status}.`);
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: "Upload failed" }));
-    throw new ApiError(body.error || "Upload failed", res.status, extractDetails(body));
+    throw new ApiError(
+      body.error || "Upload failed",
+      res.status,
+      extractDetails(body),
+    );
   }
   return res.json();
 }
