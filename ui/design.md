@@ -25,6 +25,7 @@ Styling uses inline styles throughout. No CSS framework is used.
 
 ```
 /                                                → UploadPage (landing)
+/search?q=&field=&scope=&workflowId=&from=&to=  → SearchPage (advanced search)
 /workflows/:workflowId                           → WorkflowView (top-level DAG)
 /workflows/:workflowId/steps/:uuid               → StepView (sub-step DAG or leaf detail)
 /workflows/:workflowId/logs?stepPath=             → LogsPage (dedicated full-page log viewer)
@@ -32,7 +33,7 @@ Styling uses inline styles throughout. No CSS framework is used.
 
 The `/workflows/:workflowId` and `/workflows/:workflowId/steps/:uuid` routes are nested under `WorkflowLayout` as a React Router parent route. `WorkflowLayout` fetches workflow metadata once and renders a shared chrome (header, breadcrumb, status filter) around the route outlet.
 
-`LogsPage` is a standalone route (not nested under `WorkflowLayout`) that provides a full-viewport log viewing experience.
+`LogsPage` and `SearchPage` are standalone routes (not nested under `WorkflowLayout`).
 
 ---
 
@@ -42,7 +43,13 @@ The `/workflows/:workflowId` and `/workflows/:workflowId/steps/:uuid` routes are
 App                                  src/App.tsx
 ├── UploadPage                       src/pages/UploadPage.tsx
 │   ├── UploadForm                   src/components/UploadForm.tsx
-│   └── NavigateForm                 src/components/NavigateForm.tsx
+│   ├── NavigateForm                 src/components/NavigateForm.tsx
+│   ├── advanced-search link         (inline Link to /search)
+│   └── CommandPalette               src/components/CommandPalette.tsx
+│
+├── SearchPage                       src/pages/SearchPage.tsx
+│   ├── SearchForm                   src/components/SearchForm.tsx
+│   └── SearchResultsTable           src/components/SearchResultsTable.tsx
 │
 ├── WorkflowLayout                   src/components/WorkflowLayout.tsx
 │   ├── WorkflowHeader               src/components/WorkflowHeader.tsx
@@ -125,8 +132,10 @@ TanStack Query owns all server state. Zustand holds only UI state that isn't der
 Landing page. Renders a centered layout with:
 
 1. A title and tagline
-2. `UploadForm` for uploading workflow JSON files
-3. `NavigateForm` for navigating to a workflow or step by ID
+2. A search trigger button (🔍 Search workflows... ⌘K) that opens `CommandPalette` scoped to all workflows and steps (no `workflowId`). Ctrl/Cmd+K also opens the palette.
+3. `UploadForm` for uploading workflow JSON files
+4. `NavigateForm` for navigating to a workflow or step by ID
+5. An "Advanced Search" link to `/search` for discoverability
 
 No data fetching.
 
@@ -187,11 +196,46 @@ A centered modal overlay for searching workflows and steps. Props:
 Behavior:
 
 - Auto-focuses the text input on open (50 ms delay to allow mount)
-- Registers a global `keydown` listener for Escape while open
-- Debounces API calls (200 ms) to `GET /api/search` as the user types
+- Registers a global `keydown` listener for Escape while open; if the help panel is open, Escape closes the panel instead of the palette
+- Debounces API calls (400 ms) to `GET /api/search` as the user types
+- Supports prefix syntax (`name:`, `uri:`, `pin:`, `path:`) via `parseSearchQuery` — a pure function defined inline. When a prefix is detected, the matched `field` is passed to the API and a prefix indicator bar (`data-testid="prefix-indicator"`) is shown below the input with a colored pill and a `×` button to strip the prefix. Wrapping the query in double quotes bypasses prefix parsing and searches the literal text.
+- A `?` help button (`data-testid="search-help-button"`, `title` tooltip) toggles a help panel (`data-testid="search-help-panel"`) that replaces the results area and describes all prefixes, escaping, and tips. Typing in the input closes the help panel.
+- Footer shows keyboard hints and an "Advanced Search →" button (`data-testid="advanced-search-link"`) that closes the palette and navigates to `/search`, pre-filling `q`, `field`, and `workflowId` as URL params.
 - Renders results with `StatusBadge`, step/workflow name, hierarchy path or URI, and a type badge
 - Arrow keys move selection; Enter or click navigates and closes the palette
 - Element has `data-testid="command-palette"`, input has `data-testid="command-palette-input"`, each result row has `data-testid="search-result"`
+
+### `SearchPage` — `src/pages/SearchPage.tsx`
+
+Standalone route at `/search` (not nested under `WorkflowLayout`). Reads all filter values from URL search params (`q`, `field`, `scope`, `workflowId`, `from`, `to`) as the committed state. Renders a minimal header with the app name linking to `/`, then a two-section layout:
+
+1. `SearchForm` — pre-filled from URL params, calls `setSearchParams` on submit
+2. `SearchResultsTable` — displays query results or loading/empty states
+
+Uses TanStack Query with key `['search', q, field, scope, workflowId, from, to]`, enabled only when `q` is non-empty. `staleTime` is 0. Date values from the form (`YYYY-MM-DD`) are converted to RFC 3339 timestamps (`T00:00:00Z` for `from`, `T23:59:59Z` for `to`) before the API call. Element has `data-testid="search-page"`.
+
+### `SearchForm` — `src/components/SearchForm.tsx`
+
+Filter form for the advanced search page. Accepts `initialValues` and `onSubmit` props. Maintains local controlled state for all fields; submits on button click or Enter from the text input. The "Clear" button resets all fields to empty and calls `onSubmit` immediately with empty values.
+
+Controls:
+
+| Control     | Type            | Maps to API param |
+| ----------- | --------------- | ----------------- |
+| Search term | Text input      | `q`               |
+| Field       | Select dropdown | `field`           |
+| Scope       | Select dropdown | `scope`           |
+| Workflow ID | Text input      | `workflowId`      |
+| From        | Date input      | `from`            |
+| To          | Date input      | `to`              |
+
+The Workflow ID input is disabled when scope is `"workflows"`. Field options: `All fields`, `Name`, `URI`, `Pin`, `Path`. Scope options: `All`, `Workflows`, `Steps`. Form has `data-testid="search-form"`.
+
+### `SearchResultsTable` — `src/components/SearchResultsTable.tsx`
+
+Displays search results in a table. Renders nothing when `hasQuery` is false, a loading message while fetching, an empty state (`data-testid="search-empty"`) when results are empty, or the results table (`data-testid="search-results-table"`).
+
+Columns: Type (colored badge: `workflow` or `step`), Status (`StatusBadge`), Name (clickable via row click), Location (URI for workflows, hierarchy path for steps), Start Time (`formatLocalTime`). Clicking a row navigates to `/workflows/:workflowId` for workflows or `/workflows/:workflowId/steps/:uuid` for steps.
 
 ### `InfoCard` — `src/components/InfoCard.tsx`
 
@@ -342,12 +386,16 @@ Clicking the workflow name navigates to `/workflows/:workflowId`. Clicking an an
 
 ### Search Flow
 
-A `CommandPalette` overlay is accessible from `WorkflowHeader` (within any workflow or step view) and from `LogsPage`. It opens via the 🔍 search trigger button or Ctrl/Cmd+K.
+A `CommandPalette` overlay is accessible from `WorkflowHeader` (within any workflow or step view), from `LogsPage`, and from `UploadPage`. It opens via the 🔍 search trigger button or Ctrl/Cmd+K.
 
 - **Within a workflow view**: `workflowId` is passed to `CommandPalette`, so the default search scope is `"steps"` within that workflow. Results navigate to `/workflows/:id/steps/:uuid`.
-- **On the landing page**: `ComandPalette` without `workflowId` results in searches scoped to both workflows and steps; `NavigateForm` handles exact-ID lookup.
+- **On the landing page**: `CommandPalette` without `workflowId` results in searches scoped to both workflows and steps; `NavigateForm` handles exact-ID lookup.
 
-As the user types, requests are debounced (400 ms) to `GET /api/search`. Results are rendered with a status badge, name, and hierarchy path or URI. Arrow keys navigate the list; Enter or click selects. Escape or clicking the backdrop closes the palette.
+As the user types, requests are debounced (400 ms) to `GET /api/search`. The palette supports prefix syntax (`name:`, `uri:`, `pin:`, `path:`) — when detected, the matched field is sent to the API and a visual indicator bar is shown. Wrapping the query in double quotes bypasses prefix parsing. Results are rendered with a status badge, name, and hierarchy path or URI. Arrow keys navigate the list; Enter or click selects. Escape or clicking the backdrop closes the palette (if the help panel is open, Escape closes the panel first).
+
+### Advanced Search Flow
+
+The user navigates to `/search` via the "Advanced Search" link in the palette footer, the link on `UploadPage`, or directly. The palette forwards the current query, detected field, and `workflowId` context as URL params. On the search page the user fills the filter form and submits — URL params update (making the state bookmarkable), TanStack Query fetches results, and the results table renders. Clicking a row navigates to the workflow or step view.
 
 ### Home Navigation Flow
 
@@ -400,4 +448,4 @@ docker compose up -d
 bun run test:e2e-frontend   # from the repo root
 ```
 
-Tests cover: SPA hydration, upload flow, navigate-by-ID, DAG rendering, header metadata, info card, status badges, step navigation, breadcrumbs, dedicated log viewer, deep linking, browser history, validation errors, elapsed time display, command palette (open/close/search/navigate), and `LogsPage` breadcrumb navigation. See [`/tests/e2e-tests-frontend.ts`](../tests/e2e-tests-frontend.ts) for the full test suite.
+Tests cover: SPA hydration, upload flow, navigate-by-ID, DAG rendering, header metadata, info card, status badges, step navigation, breadcrumbs, dedicated log viewer, deep linking, browser history, validation errors, elapsed time display, command palette (open/close/search/navigate/prefix-syntax/help-panel/advanced-search-link), `LogsPage` breadcrumb navigation, advanced search page (rendering, URL state, date range filtering, row navigation), and landing page advanced search link. See [`/tests/e2e-tests-frontend.ts`](../tests/e2e-tests-frontend.ts) for the full test suite.

@@ -1601,3 +1601,971 @@ describe("[23] Landing Page — Search Trigger & Command Palette", () => {
     TEST_TIMEOUT,
   );
 });
+
+// ── [24] Command Palette — Prefix Search ─────────────────────────────────────
+
+describe("[24] Command Palette — Prefix Search", () => {
+  let workflowId: string;
+  let workflowViewUrl: string;
+
+  beforeAll(async () => {
+    const result = await uploadFixture("nested-hierarchy.json");
+    workflowId = result.workflowId;
+    workflowViewUrl = `${UI_BASE}${viewPath(result.viewUrl)}`;
+  }, 15_000);
+
+  afterAll(async () => {
+    if (workflowId) await deleteWorkflow(workflowId);
+  });
+
+  test(
+    "[24.1] typing `name:Build` shows prefix indicator with field pill",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(workflowViewUrl);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .fill("name:Build");
+
+        const indicator = page.locator('[data-testid="prefix-indicator"]');
+        await indicator.waitFor({ timeout: 5_000 });
+        expect(await indicator.isVisible()).toBe(true);
+
+        const indicatorText = await indicator.textContent();
+        expect(indicatorText?.toLowerCase()).toContain("name");
+
+        await page
+          .locator('[data-testid="search-result"]')
+          .first()
+          .waitFor({ timeout: 10_000 });
+        expect(
+          await page.locator('[data-testid="search-result"]').count(),
+        ).toBeGreaterThanOrEqual(1);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "[24.2] typing `uri:` prefix shows prefix indicator and returns field-scoped results",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(workflowViewUrl);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .fill("uri:github");
+
+        const indicator = page.locator('[data-testid="prefix-indicator"]');
+        await indicator.waitFor({ timeout: 5_000 });
+        expect(await indicator.isVisible()).toBe(true);
+
+        const indicatorText = await indicator.textContent();
+        expect(indicatorText?.toLowerCase()).toContain("uri");
+
+        // Wait for API response — results or empty state
+        await page.waitForTimeout(600);
+        const hasResults =
+          (await page.locator('[data-testid="search-result"]').count()) > 0;
+        const paletteText = await page
+          .locator('[data-testid="command-palette"]')
+          .textContent();
+        expect(hasResults || paletteText?.includes("No results")).toBe(true);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "[24.3] typing `path:/ci` prefix shows prefix indicator and returns path-scoped results",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(workflowViewUrl);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .fill("path:/ci");
+
+        const indicator = page.locator('[data-testid="prefix-indicator"]');
+        await indicator.waitFor({ timeout: 5_000 });
+        expect(await indicator.isVisible()).toBe(true);
+
+        const indicatorText = await indicator.textContent();
+        expect(indicatorText?.toLowerCase()).toContain("path");
+
+        await page
+          .locator('[data-testid="search-result"]')
+          .first()
+          .waitFor({ timeout: 10_000 });
+        const paletteText = await page
+          .locator('[data-testid="command-palette"]')
+          .textContent();
+        expect(paletteText?.toLowerCase()).toContain("/ci");
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "[24.4] typing a plain query (no prefix) does not show prefix indicator",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(workflowViewUrl);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .fill("Build");
+
+        await page
+          .locator('[data-testid="search-result"]')
+          .first()
+          .waitFor({ timeout: 10_000 });
+
+        expect(
+          await page.locator('[data-testid="prefix-indicator"]').count(),
+        ).toBe(0);
+        expect(
+          await page.locator('[data-testid="search-result"]').count(),
+        ).toBeGreaterThanOrEqual(1);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "[24.5] clicking × on the prefix pill removes the prefix from the input",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(workflowViewUrl);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .fill("name:Build");
+
+        const indicator = page.locator('[data-testid="prefix-indicator"]');
+        await indicator.waitFor({ timeout: 5_000 });
+
+        // Click the × button inside the prefix indicator
+        await indicator.locator("button").click();
+
+        await page.waitForFunction(
+          () => !document.querySelector('[data-testid="prefix-indicator"]'),
+          { timeout: 5_000 },
+        );
+        expect(
+          await page.locator('[data-testid="prefix-indicator"]').count(),
+        ).toBe(0);
+
+        const inputValue = await page
+          .locator('[data-testid="command-palette-input"]')
+          .inputValue();
+        expect(inputValue).toBe("Build");
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    '[24.6] quoted query "name:Build" does not show prefix indicator',
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(workflowViewUrl);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .fill('"name:Build"');
+
+        await page.waitForTimeout(600);
+
+        expect(
+          await page.locator('[data-testid="prefix-indicator"]').count(),
+        ).toBe(0);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+});
+
+// ── [25] Command Palette — Help Panel ────────────────────────────────────────
+
+describe("[25] Command Palette — Help Panel", () => {
+  let workflowId: string;
+  let workflowViewUrl: string;
+
+  beforeAll(async () => {
+    const result = await uploadFixture("nested-hierarchy.json");
+    workflowId = result.workflowId;
+    workflowViewUrl = `${UI_BASE}${viewPath(result.viewUrl)}`;
+  }, 15_000);
+
+  afterAll(async () => {
+    if (workflowId) await deleteWorkflow(workflowId);
+  });
+
+  test(
+    "[25.1] help button is visible in the command palette",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(workflowViewUrl);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        expect(
+          await page.locator('[data-testid="search-help-button"]').isVisible(),
+        ).toBe(true);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "[25.2] clicking help button shows the help panel",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(workflowViewUrl);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page.locator('[data-testid="search-help-button"]').click();
+
+        const helpPanel = page.locator('[data-testid="search-help-panel"]');
+        await helpPanel.waitFor({ timeout: 5_000 });
+        expect(await helpPanel.isVisible()).toBe(true);
+
+        const panelText = await helpPanel.textContent();
+        expect(panelText).toContain("name:");
+        expect(panelText).toContain("uri:");
+        expect(panelText).toContain("pin:");
+        expect(panelText).toContain("path:");
+        expect(panelText?.toLowerCase()).toContain("quot");
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "[25.3] clicking help button again closes the help panel",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(workflowViewUrl);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page.locator('[data-testid="search-help-button"]').click();
+        await page
+          .locator('[data-testid="search-help-panel"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page.locator('[data-testid="search-help-button"]').click();
+
+        await page.waitForFunction(
+          () => !document.querySelector('[data-testid="search-help-panel"]'),
+          { timeout: 5_000 },
+        );
+        expect(
+          await page.locator('[data-testid="search-help-panel"]').count(),
+        ).toBe(0);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "[25.4] typing in the input closes the help panel and shows results",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(workflowViewUrl);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page.locator('[data-testid="search-help-button"]').click();
+        await page
+          .locator('[data-testid="search-help-panel"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .fill("Build");
+
+        await page.waitForFunction(
+          () => !document.querySelector('[data-testid="search-help-panel"]'),
+          { timeout: 5_000 },
+        );
+        expect(
+          await page.locator('[data-testid="search-help-panel"]').count(),
+        ).toBe(0);
+
+        await page
+          .locator('[data-testid="search-result"]')
+          .first()
+          .waitFor({ timeout: 10_000 });
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "[25.5] pressing Escape while help panel is open closes the help panel (not the palette)",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(workflowViewUrl);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page.locator('[data-testid="search-help-button"]').click();
+        await page
+          .locator('[data-testid="search-help-panel"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page.keyboard.press("Escape");
+
+        await page.waitForFunction(
+          () => !document.querySelector('[data-testid="search-help-panel"]'),
+          { timeout: 5_000 },
+        );
+        expect(
+          await page.locator('[data-testid="search-help-panel"]').count(),
+        ).toBe(0);
+
+        // Palette should still be open
+        expect(
+          await page.locator('[data-testid="command-palette"]').isVisible(),
+        ).toBe(true);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+});
+
+// ── [26] Command Palette — Advanced Search Link ───────────────────────────────
+
+describe("[26] Command Palette — Advanced Search Link", () => {
+  let workflowId: string;
+  let workflowViewUrl: string;
+
+  beforeAll(async () => {
+    const result = await uploadFixture("nested-hierarchy.json");
+    workflowId = result.workflowId;
+    workflowViewUrl = `${UI_BASE}${viewPath(result.viewUrl)}`;
+  }, 15_000);
+
+  afterAll(async () => {
+    if (workflowId) await deleteWorkflow(workflowId);
+  });
+
+  test(
+    '[26.1] "Advanced Search" link is visible in the palette footer',
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(workflowViewUrl);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        expect(
+          await page
+            .locator('[data-testid="advanced-search-link"]')
+            .isVisible(),
+        ).toBe(true);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    '[26.2] clicking "Advanced Search" with no query navigates to `/search`',
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(workflowViewUrl);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page.locator('[data-testid="advanced-search-link"]').click();
+
+        await page.waitForURL(/\/search/, { timeout: 10_000 });
+        expect(
+          await page.locator('[data-testid="command-palette"]').count(),
+        ).toBe(0);
+        expect(new URL(page.url()).pathname).toBe("/search");
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    '[26.3] clicking "Advanced Search" with a prefix query pre-fills URL params',
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(workflowViewUrl);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .fill("name:Build");
+        await page
+          .locator('[data-testid="prefix-indicator"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page.locator('[data-testid="advanced-search-link"]').click();
+
+        await page.waitForURL(/\/search/, { timeout: 10_000 });
+        const url = new URL(page.url());
+        expect(url.searchParams.get("q")).toBe("Build");
+        expect(url.searchParams.get("field")).toBe("name");
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    '[26.4] clicking "Advanced Search" from a workflow-scoped palette includes workflowId',
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(workflowViewUrl);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .fill("Build");
+
+        await page.locator('[data-testid="advanced-search-link"]').click();
+
+        await page.waitForURL(/\/search/, { timeout: 10_000 });
+        const url = new URL(page.url());
+        expect(url.searchParams.get("q")).toBe("Build");
+        expect(url.searchParams.get("workflowId")).toBe(workflowId);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+});
+
+// ── [27] Advanced Search Page — Rendering & Controls ─────────────────────────
+
+describe("[27] Advanced Search Page — Rendering & Controls", () => {
+  let workflowId: string;
+
+  beforeAll(async () => {
+    const result = await uploadFixture("nested-hierarchy.json");
+    workflowId = result.workflowId;
+  }, 15_000);
+
+  afterAll(async () => {
+    if (workflowId) await deleteWorkflow(workflowId);
+  });
+
+  test(
+    "[27.1] `/search` route renders the search page with all form controls",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(`${UI_BASE}/search`);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        expect(
+          await page.locator('[data-testid="search-page"]').isVisible(),
+        ).toBe(true);
+        expect(
+          await page.locator('[data-testid="search-form"]').isVisible(),
+        ).toBe(true);
+
+        expect(
+          await page.locator('input[type="text"]').count(),
+        ).toBeGreaterThanOrEqual(1);
+        expect(await page.locator("select").count()).toBeGreaterThanOrEqual(2);
+        expect(await page.locator('input[type="date"]').count()).toBe(2);
+        expect(
+          await page.locator('button[type="submit"]').count(),
+        ).toBeGreaterThanOrEqual(1);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "[27.2] search form submits and displays results in a table",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(`${UI_BASE}/search`);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page
+          .locator('input[type="text"]')
+          .first()
+          .fill("nested-hierarchy");
+        await page.locator('button[type="submit"]').click();
+
+        const table = page.locator('[data-testid="search-results-table"]');
+        await table.waitFor({ timeout: 10_000 });
+        expect(await table.isVisible()).toBe(true);
+
+        const rows = table.locator("tbody tr");
+        expect(await rows.count()).toBeGreaterThanOrEqual(1);
+
+        const tableText = await table.textContent();
+        expect(tableText?.toLowerCase()).toContain("nested-hierarchy");
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "[27.3] selecting a field restricts search results",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(`${UI_BASE}/search`);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        // Select the field dropdown (first select is "field")
+        await page.locator("select").first().selectOption("name");
+        await page
+          .locator('input[type="text"]')
+          .first()
+          .fill("nested-hierarchy");
+        await page.locator('button[type="submit"]').click();
+
+        await page
+          .locator('[data-testid="search-results-table"]')
+          .waitFor({ timeout: 10_000 });
+        expect(
+          await page
+            .locator('[data-testid="search-results-table"]')
+            .isVisible(),
+        ).toBe(true);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "[27.4] search with no results shows empty state",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(`${UI_BASE}/search`);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page
+          .locator('input[type="text"]')
+          .first()
+          .fill("zzz-nonexistent-query-zzz");
+        await page.locator('button[type="submit"]').click();
+
+        await page
+          .locator('[data-testid="search-empty"]')
+          .waitFor({ timeout: 10_000 });
+        expect(
+          await page.locator('[data-testid="search-empty"]').isVisible(),
+        ).toBe(true);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    '[27.5] "Clear" button resets all filters',
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(`${UI_BASE}/search`);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page
+          .locator('input[type="text"]')
+          .first()
+          .fill("nested-hierarchy");
+        await page.locator("select").first().selectOption("uri");
+        await page.locator("select").nth(1).selectOption("workflows");
+
+        await page.getByRole("button", { name: "Clear" }).click();
+
+        expect(
+          await page.locator('input[type="text"]').first().inputValue(),
+        ).toBe("");
+        expect(await page.locator("select").first().inputValue()).toBe("");
+        expect(await page.locator("select").nth(1).inputValue()).toBe("");
+        expect(
+          await page.locator('input[type="date"]').first().inputValue(),
+        ).toBe("");
+        expect(
+          await page.locator('input[type="date"]').nth(1).inputValue(),
+        ).toBe("");
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+});
+
+// ── [28] Advanced Search Page — URL State & Navigation ───────────────────────
+
+describe("[28] Advanced Search Page — URL State & Navigation", () => {
+  let workflowId: string;
+
+  beforeAll(async () => {
+    const result = await uploadFixture("nested-hierarchy.json");
+    workflowId = result.workflowId;
+  }, 15_000);
+
+  afterAll(async () => {
+    if (workflowId) await deleteWorkflow(workflowId);
+  });
+
+  test(
+    "[28.1] submitting a search updates the URL with query params",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(`${UI_BASE}/search`);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page.locator('input[type="text"]').first().fill("Build");
+        await page.locator("select").first().selectOption("name");
+        await page.locator('button[type="submit"]').click();
+
+        await page.waitForURL(/q=Build/, { timeout: 10_000 });
+        const url = new URL(page.url());
+        expect(url.searchParams.get("q")).toBe("Build");
+        expect(url.searchParams.get("field")).toBe("name");
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "[28.2] navigating directly to `/search?q=nested-hierarchy` loads with pre-filled form and results",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(`${UI_BASE}/search?q=nested-hierarchy`);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        expect(
+          await page.locator('input[type="text"]').first().inputValue(),
+        ).toBe("nested-hierarchy");
+
+        await page
+          .locator('[data-testid="search-results-table"]')
+          .waitFor({ timeout: 10_000 });
+        expect(
+          await page
+            .locator('[data-testid="search-results-table"]')
+            .locator("tbody tr")
+            .count(),
+        ).toBeGreaterThanOrEqual(1);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "[28.3] navigating to `/search?q=Build&field=name&scope=steps` pre-fills all controls",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(`${UI_BASE}/search?q=Build&field=name&scope=steps`);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        expect(
+          await page.locator('input[type="text"]').first().inputValue(),
+        ).toBe("Build");
+        expect(await page.locator("select").first().inputValue()).toBe("name");
+        expect(await page.locator("select").nth(1).inputValue()).toBe("steps");
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "[28.4] clicking a workflow result navigates to the workflow view",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(`${UI_BASE}/search?q=nested-hierarchy&scope=workflows`);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page
+          .locator('[data-testid="search-results-table"] tbody tr')
+          .first()
+          .waitFor({ timeout: 10_000 });
+
+        await page
+          .locator('[data-testid="search-results-table"] tbody tr')
+          .first()
+          .click();
+
+        await page.waitForURL(/\/workflows\/[^/]+$/, { timeout: 10_000 });
+        expect(page.url()).toMatch(/\/workflows\/[^/]+$/);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "[28.5] clicking a step result navigates to the step view",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(`${UI_BASE}/search?q=Build&scope=steps`);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        const firstRow = page
+          .locator('[data-testid="search-results-table"] tbody tr')
+          .first();
+        await firstRow.waitFor({ timeout: 10_000 });
+        await firstRow.click();
+
+        await page.waitForURL(/\/workflows\/.+\/steps\//, { timeout: 10_000 });
+        expect(page.url()).toMatch(/\/workflows\/.+\/steps\//);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "[28.6] date range filtering sends from/to params to API",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(`${UI_BASE}/search`);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        // Use a wide date range that includes the fixture
+        const today = new Date().toISOString().split("T")[0];
+        const past = "2020-01-01";
+
+        await page
+          .locator('input[type="text"]')
+          .first()
+          .fill("nested-hierarchy");
+        await page.locator('input[type="date"]').first().fill(past);
+        await page.locator('input[type="date"]').nth(1).fill(today);
+        await page.locator('button[type="submit"]').click();
+
+        await page
+          .locator('[data-testid="search-results-table"]')
+          .waitFor({ timeout: 10_000 });
+        expect(
+          await page
+            .locator('[data-testid="search-results-table"]')
+            .locator("tbody tr")
+            .count(),
+        ).toBeGreaterThanOrEqual(1);
+
+        // Narrow range to far past — should exclude fixture
+        await page.locator('input[type="date"]').nth(1).fill("2020-01-01");
+        await page.locator('button[type="submit"]').click();
+
+        await page
+          .locator('[data-testid="search-empty"]')
+          .waitFor({ timeout: 10_000 });
+        expect(
+          await page.locator('[data-testid="search-empty"]').isVisible(),
+        ).toBe(true);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+});
+
+// ── [29] Landing Page — Advanced Search Link ─────────────────────────────────
+
+describe("[29] Landing Page — Advanced Search Link", () => {
+  test(
+    "[29.1] landing page has a link to the advanced search page",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(UI_BASE);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        const link = page.getByText(/Advanced Search/i).first();
+        await link.waitFor({ timeout: 5_000 });
+        expect(await link.isVisible()).toBe(true);
+
+        await link.click();
+
+        await page.waitForURL(/\/search/, { timeout: 10_000 });
+        expect(new URL(page.url()).pathname).toBe("/search");
+        await page
+          .locator('[data-testid="search-page"]')
+          .waitFor({ timeout: 10_000 });
+        expect(
+          await page.locator('[data-testid="search-page"]').isVisible(),
+        ).toBe(true);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+});

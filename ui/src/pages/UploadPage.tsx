@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import UploadForm from "../components/UploadForm";
 import NavigateForm from "../components/NavigateForm";
 import CommandPalette from "../components/CommandPalette";
@@ -76,6 +77,18 @@ export default function UploadPage() {
 
       <UploadForm />
       <NavigateForm />
+
+      <Link
+        to="/search"
+        style={{
+          color: "#64748b",
+          fontSize: "0.875rem",
+          textDecoration: "none",
+        }}
+      >
+        Or search for workflows →{" "}
+        <span style={{ color: "#93c5fd" }}>Advanced Search</span>
+      </Link>
 
       <CommandPalette
         open={paletteOpen}
