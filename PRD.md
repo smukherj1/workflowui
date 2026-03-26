@@ -88,6 +88,22 @@ A web-based user interface designed to visualize, inspect, and debug CI/CD workf
 - Search results display the step's status, name, and hierarchy path. Clicking a result navigates directly to that step or workflow.
 - Search is available from the landing page (all workflows) and from within a workflow (steps scoped to that workflow, with an option to search all workflows).
 
+### CUJ 8: Field-Scoped Search via Command Palette
+
+- The user can scope their search to a specific field by typing a prefix in the command palette: `name:`, `uri:`, `pin:`, or `path:`.
+- When a prefix is detected, the palette shows a visual indicator (colored pill with the field name) and the extracted search term, so the user can confirm what is being searched.
+- The user can dismiss the detected prefix by clicking `×` on the indicator pill.
+- If the user needs to search for text that starts with a prefix-like pattern (e.g., the literal string `name:foo`), they can wrap the query in double quotes to bypass prefix detection.
+- A `?` help button in the palette provides a quick reference for supported prefixes, quoting syntax, and search tips. Hovering over the button shows a tooltip; clicking it shows the full help reference in the results area.
+
+### CUJ 9: Advanced Search Page
+
+- The user can navigate to a dedicated search page for complex queries that go beyond what the command palette offers.
+- The search page provides form controls for: search term, field selection (dropdown), scope (all/workflows/steps), workflow ID, and date range (from/to date pickers).
+- Results are displayed in a table with columns for type, status, name, location (URI or hierarchy path), and start time. Clicking a result navigates to the workflow or step.
+- All search parameters are reflected in the URL, making searches shareable and bookmarkable.
+- The advanced search page is accessible from the command palette footer ("Advanced Search" link), which pre-fills the current query and detected prefix. It is also accessible from the landing page.
+
 ## 5. Non-Functional Requirements
 
 - An uploaded workflow is retained for at least 7 days.
