@@ -5,15 +5,23 @@ import { workflows, steps, stepDependencies, stepLogs } from "./schema.js";
 import type { WorkflowInput, FlatStep } from "./types.js";
 import type { StepInput } from "./types.js";
 
-const pool = new Pool({
-  host: process.env.PGHOST ?? "localhost",
-  port: Number(process.env.PGPORT ?? 5432),
-  database: process.env.PGDATABASE ?? "workflowui",
-  user: process.env.PGUSER ?? "workflowui",
-  password: process.env.PGPASSWORD ?? "workflowui",
-});
+const pool = new Pool(poolConfig());
 
 export const db = drizzle(pool);
+
+function poolConfig() {
+  const c = {
+    host: process.env.PGHOST ?? "localhost",
+    port: Number(process.env.PGPORT ?? 5432),
+    database: process.env.PGDATABASE ?? "workflowui",
+    user: process.env.PGUSER ?? "workflowui",
+    password: process.env.PGPASSWORD ?? "workflowui",
+  };
+  console.log(
+    `Connecting to Postgres DB at host=${c.host} port=${c.port} database=${c.database} user=${c.user}, password=${c.password ? "****" : "(empty)"}`,
+  );
+  return c;
+}
 
 // ── Flatten tree ─────────────────────────────────────────────────────────────
 
