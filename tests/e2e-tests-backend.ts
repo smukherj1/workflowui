@@ -587,7 +587,7 @@ describe("GET /api/search", () => {
     ]);
   });
 
-  test("missing q returns 400", async () => {
+  test("missing all search terms returns 400", async () => {
     const { status } = await get("/api/search?scope=all");
     expect(status).toBe(400);
   });
@@ -595,6 +595,53 @@ describe("GET /api/search", () => {
   test("empty q returns 400", async () => {
     const { status } = await get("/api/search?q=");
     expect(status).toBe(400);
+  });
+
+  test("old field param is rejected (400)", async () => {
+    const { status } = await get("/api/search?q=hello&field=name");
+    expect(status).toBe(400);
+  });
+
+  test("name + pin filters are ANDed", async () => {
+    const { status, json } = await get(
+      `/api/search?name=simple-linear&pin=abc123&scope=workflows`,
+    );
+    const body = json as Record<string, unknown>;
+    expect(status).toBe(200);
+    const results = body.results as Record<string, unknown>[];
+    const wf = results.find((r) => r.workflowId === linearId);
+    expect(wf, "simple-linear workflow in results").toBeDefined();
+  });
+
+  test("name + pin AND filters exclude non-matching", async () => {
+    const { status, json } = await get(
+      `/api/search?name=simple-linear&pin=wrong-pin&scope=workflows`,
+    );
+    const body = json as Record<string, unknown>;
+    expect(status).toBe(200);
+    const results = body.results as Record<string, unknown>[];
+    expect(results.length).toBe(0);
+  });
+
+  test("q + pin filters are ANDed", async () => {
+    const { status, json } = await get(
+      `/api/search?q=simple-linear&pin=abc123&scope=workflows`,
+    );
+    const body = json as Record<string, unknown>;
+    expect(status).toBe(200);
+    const results = body.results as Record<string, unknown>[];
+    const wf = results.find((r) => r.workflowId === linearId);
+    expect(wf, "simple-linear workflow in results").toBeDefined();
+  });
+
+  test("q + pin AND excludes non-matching", async () => {
+    const { status, json } = await get(
+      `/api/search?q=simple-linear&pin=wrong-pin&scope=workflows`,
+    );
+    const body = json as Record<string, unknown>;
+    expect(status).toBe(200);
+    const results = body.results as Record<string, unknown>[];
+    expect(results.length).toBe(0);
   });
 
   test("search by name finds workflows (scope=workflows)", async () => {
@@ -645,9 +692,9 @@ describe("GET /api/search", () => {
     expect(hasWorkflow, "at least one workflow result").toBe(true);
   });
 
-  test("field=name restricts search to name field", async () => {
+  test("name param searches name only", async () => {
     const { status, json } = await get(
-      `/api/search?q=github&scope=workflows&field=name`,
+      `/api/search?name=github&scope=workflows`,
     );
     const body = json as Record<string, unknown>;
     expect(status).toBe(200);
@@ -659,9 +706,9 @@ describe("GET /api/search", () => {
     expect(falsePositive).toBeUndefined();
   });
 
-  test("field=uri finds workflows by URI", async () => {
+  test("uri param finds workflows by URI", async () => {
     const { status, json } = await get(
-      `/api/search?q=github&scope=workflows&field=uri`,
+      `/api/search?uri=github&scope=workflows`,
     );
     const body = json as Record<string, unknown>;
     expect(status).toBe(200);
@@ -672,9 +719,9 @@ describe("GET /api/search", () => {
     }
   });
 
-  test("field=pin finds workflows by pin", async () => {
+  test("pin param finds workflows by pin", async () => {
     const { status, json } = await get(
-      `/api/search?q=abc123&scope=workflows&field=pin`,
+      `/api/search?pin=abc123&scope=workflows`,
     );
     const body = json as Record<string, unknown>;
     expect(status).toBe(200);
@@ -685,10 +732,8 @@ describe("GET /api/search", () => {
     }
   });
 
-  test("field=path finds steps by hierarchy path", async () => {
-    const { status, json } = await get(
-      `/api/search?q=%2Fci%2F&scope=steps&field=path`,
-    );
+  test("path param finds steps by hierarchy path", async () => {
+    const { status, json } = await get(`/api/search?path=%2Fci%2F&scope=steps`);
     const body = json as Record<string, unknown>;
     expect(status).toBe(200);
     const results = body.results as Record<string, unknown>[];
@@ -697,6 +742,16 @@ describe("GET /api/search", () => {
       expect(r.type).toBe("step");
       expect((r.hierarchyPath as string).startsWith("/ci/")).toBe(true);
     }
+  });
+
+  test("path param ignored for scope=workflows", async () => {
+    const { status, json } = await get(
+      `/api/search?path=%2Fci&scope=workflows`,
+    );
+    const body = json as Record<string, unknown>;
+    expect(status).toBe(200);
+    const results = body.results as Record<string, unknown>[];
+    expect(results.length).toBe(0);
   });
 
   test("workflowId scopes step search to a single workflow", async () => {

@@ -2,7 +2,10 @@ import { useState } from "react";
 
 interface SearchFormValues {
   q: string;
-  field: string;
+  name: string;
+  uri: string;
+  pin: string;
+  path: string;
   scope: string;
   workflowId: string;
   from: string;
@@ -16,7 +19,10 @@ interface Props {
 
 export default function SearchForm({ initialValues, onSubmit }: Props) {
   const [q, setQ] = useState(initialValues.q);
-  const [field, setField] = useState(initialValues.field);
+  const [name, setName] = useState(initialValues.name);
+  const [uri, setUri] = useState(initialValues.uri);
+  const [pin, setPin] = useState(initialValues.pin);
+  const [path, setPath] = useState(initialValues.path);
   const [scope, setScope] = useState(initialValues.scope);
   const [workflowId, setWorkflowId] = useState(initialValues.workflowId);
   const [from, setFrom] = useState(initialValues.from);
@@ -24,20 +30,75 @@ export default function SearchForm({ initialValues, onSubmit }: Props) {
 
   function handleSubmit(e?: React.FormEvent) {
     e?.preventDefault();
-    onSubmit({ q, field, scope, workflowId, from, to });
+    onSubmit({ q, name, uri, pin, path, scope, workflowId, from, to });
   }
 
   function handleClear() {
     setQ("");
-    setField("");
+    setName("");
+    setUri("");
+    setPin("");
+    setPath("");
     setScope("");
     setWorkflowId("");
     setFrom("");
     setTo("");
-    onSubmit({ q: "", field: "", scope: "", workflowId: "", from: "", to: "" });
+    onSubmit({
+      q: "",
+      name: "",
+      uri: "",
+      pin: "",
+      path: "",
+      scope: "",
+      workflowId: "",
+      from: "",
+      to: "",
+    });
   }
 
   const workflowIdDisabled = scope === "workflows";
+
+  const inputStyle = {
+    background: "#0f172a",
+    border: "1px solid #334155",
+    borderRadius: 4,
+    color: "#f1f5f9",
+    fontSize: "0.875rem",
+    outline: "none",
+    padding: "0.4rem 0.6rem",
+  } as const;
+
+  function fieldBlock(
+    label: string,
+    testId: string,
+    value: string,
+    onChange: (v: string) => void,
+    flex = "1 1 160px",
+  ) {
+    return (
+      <div
+        style={{
+          flex,
+          display: "flex",
+          flexDirection: "column",
+          gap: "0.25rem",
+        }}
+      >
+        <label style={{ color: "#94a3b8", fontSize: "0.75rem" }}>{label}</label>
+        <input
+          type="text"
+          data-testid={testId}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleSubmit();
+          }}
+          placeholder={label + "..."}
+          style={inputStyle}
+        />
+      </div>
+    );
+  }
 
   return (
     <form
@@ -55,67 +116,11 @@ export default function SearchForm({ initialValues, onSubmit }: Props) {
         marginBottom: "1.5rem",
       }}
     >
-      {/* Search term */}
-      <div
-        style={{
-          flex: "1 1 200px",
-          display: "flex",
-          flexDirection: "column",
-          gap: "0.25rem",
-        }}
-      >
-        <label style={{ color: "#94a3b8", fontSize: "0.75rem" }}>
-          Search term
-        </label>
-        <input
-          type="text"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") handleSubmit();
-          }}
-          placeholder="Search..."
-          style={{
-            background: "#0f172a",
-            border: "1px solid #334155",
-            borderRadius: 4,
-            color: "#f1f5f9",
-            fontSize: "0.875rem",
-            outline: "none",
-            padding: "0.4rem 0.6rem",
-          }}
-        />
-      </div>
-
-      {/* Field */}
-      <div
-        style={{
-          flex: "0 1 130px",
-          display: "flex",
-          flexDirection: "column",
-          gap: "0.25rem",
-        }}
-      >
-        <label style={{ color: "#94a3b8", fontSize: "0.75rem" }}>Field</label>
-        <select
-          value={field}
-          onChange={(e) => setField(e.target.value)}
-          style={{
-            background: "#0f172a",
-            border: "1px solid #334155",
-            borderRadius: 4,
-            color: "#f1f5f9",
-            fontSize: "0.875rem",
-            padding: "0.4rem 0.6rem",
-          }}
-        >
-          <option value="">All fields</option>
-          <option value="name">Name</option>
-          <option value="uri">URI</option>
-          <option value="pin">Pin</option>
-          <option value="path">Path</option>
-        </select>
-      </div>
+      {fieldBlock("General search", "search-input-q", q, setQ, "1 1 200px")}
+      {fieldBlock("Name", "search-input-name", name, setName)}
+      {fieldBlock("URI", "search-input-uri", uri, setUri)}
+      {fieldBlock("Pin", "search-input-pin", pin, setPin)}
+      {fieldBlock("Path", "search-input-path", path, setPath)}
 
       {/* Scope */}
       <div

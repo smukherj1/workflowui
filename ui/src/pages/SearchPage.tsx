@@ -8,7 +8,10 @@ export default function SearchPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const committedQ = searchParams.get("q") ?? "";
-  const committedField = searchParams.get("field") ?? "";
+  const committedName = searchParams.get("name") ?? "";
+  const committedUri = searchParams.get("uri") ?? "";
+  const committedPin = searchParams.get("pin") ?? "";
+  const committedPath = searchParams.get("path") ?? "";
   const committedScope = searchParams.get("scope") ?? "";
   const committedWorkflowId = searchParams.get("workflowId") ?? "";
   const committedFrom = searchParams.get("from") ?? "";
@@ -17,31 +20,47 @@ export default function SearchPage() {
   const fromISO = committedFrom ? `${committedFrom}T00:00:00Z` : undefined;
   const toISO = committedTo ? `${committedTo}T23:59:59Z` : undefined;
 
+  const hasAnyTerm =
+    committedQ.length > 0 ||
+    committedName.length > 0 ||
+    committedUri.length > 0 ||
+    committedPin.length > 0 ||
+    committedPath.length > 0;
+
   const { data, isLoading } = useQuery({
     queryKey: [
       "search",
       committedQ,
-      committedField,
+      committedName,
+      committedUri,
+      committedPin,
+      committedPath,
       committedScope,
       committedWorkflowId,
       committedFrom,
       committedTo,
     ],
     queryFn: () =>
-      search(committedQ, {
-        field: (committedField as "name" | "uri" | "pin" | "path") || undefined,
+      search(committedQ || null, {
+        name: committedName || undefined,
+        uri: committedUri || undefined,
+        pin: committedPin || undefined,
+        path: committedPath || undefined,
         scope: (committedScope as "workflows" | "steps" | "all") || "all",
         workflowId: committedWorkflowId || undefined,
         from: fromISO,
         to: toISO,
       }),
-    enabled: committedQ.length > 0,
+    enabled: hasAnyTerm,
     staleTime: 0,
   });
 
   function handleSubmit(values: {
     q: string;
-    field: string;
+    name: string;
+    uri: string;
+    pin: string;
+    path: string;
     scope: string;
     workflowId: string;
     from: string;
@@ -49,7 +68,10 @@ export default function SearchPage() {
   }) {
     const p = new URLSearchParams();
     if (values.q) p.set("q", values.q);
-    if (values.field) p.set("field", values.field);
+    if (values.name) p.set("name", values.name);
+    if (values.uri) p.set("uri", values.uri);
+    if (values.pin) p.set("pin", values.pin);
+    if (values.path) p.set("path", values.path);
     if (values.scope) p.set("scope", values.scope);
     if (values.workflowId) p.set("workflowId", values.workflowId);
     if (values.from) p.set("from", values.from);
@@ -107,7 +129,10 @@ export default function SearchPage() {
         <SearchForm
           initialValues={{
             q: committedQ,
-            field: committedField,
+            name: committedName,
+            uri: committedUri,
+            pin: committedPin,
+            path: committedPath,
             scope: committedScope,
             workflowId: committedWorkflowId,
             from: committedFrom,
@@ -119,7 +144,7 @@ export default function SearchPage() {
         <SearchResultsTable
           results={data?.results ?? []}
           isLoading={isLoading}
-          hasQuery={committedQ.length > 0}
+          hasQuery={hasAnyTerm}
         />
       </div>
     </div>

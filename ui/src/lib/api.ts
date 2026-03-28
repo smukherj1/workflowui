@@ -96,20 +96,27 @@ export async function lookupStep(uuid: string): Promise<StepLookupResponse> {
 }
 
 export async function search(
-  q: string,
+  q: string | null,
   options?: {
     scope?: "workflows" | "steps" | "all";
     workflowId?: string;
-    field?: "name" | "uri" | "pin" | "path";
+    name?: string;
+    uri?: string;
+    pin?: string;
+    path?: string;
     from?: string;
     to?: string;
     limit?: number;
   },
 ): Promise<SearchResponse> {
-  const params = new URLSearchParams({ q });
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
   if (options?.scope) params.set("scope", options.scope);
   if (options?.workflowId) params.set("workflowId", options.workflowId);
-  if (options?.field) params.set("field", options.field);
+  if (options?.name) params.set("name", options.name);
+  if (options?.uri) params.set("uri", options.uri);
+  if (options?.pin) params.set("pin", options.pin);
+  if (options?.path) params.set("path", options.path);
   if (options?.from) params.set("from", options.from);
   if (options?.to) params.set("to", options.to);
   if (options?.limit) params.set("limit", String(options.limit));

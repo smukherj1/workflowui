@@ -193,7 +193,8 @@ For dev, the Vite dev server proxies `/api` requests to the Hono server.
 
 ## Future Work
 
-- UI search with multiple prefixes in command palette.
+- Comments in UI Command Pallette and sub-components.
+- Prefix highliting upon entering ":".
 - Better errors for workflow upload errors.
 - Incrementally upload a workflow.
 - Verify workflows are retained for up to 7 days.

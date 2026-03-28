@@ -89,11 +89,42 @@ export default function PaletteHelpPanel() {
           marginBottom: "0.5rem",
         }}
       >
+        Combine multiple filters
+      </div>
+      <div
+        style={{
+          borderTop: "1px solid #334155",
+          paddingTop: "0.5rem",
+          marginBottom: "1rem",
+          fontFamily: "monospace",
+        }}
+      >
+        <p style={{ margin: "0.3rem 0", color: "#475569" }}>
+          name:build pin:abc &nbsp;&nbsp; → name AND pin
+        </p>
+        <p style={{ margin: "0.3rem 0", color: "#475569" }}>
+          name:&quot;my build&quot; uri:gcs → quoted value with spaces
+        </p>
+        <p style={{ margin: "0.3rem 0", color: "#475569" }}>
+          build pin:abc &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; → &quot;build&quot; in
+          any field AND pin
+        </p>
+      </div>
+      <div
+        style={{
+          color: "#f1f5f9",
+          fontWeight: 600,
+          marginBottom: "0.5rem",
+        }}
+      >
         Tips
       </div>
       <div style={{ borderTop: "1px solid #334155", paddingTop: "0.5rem" }}>
         <p style={{ margin: "0.3rem 0" }}>
           • No prefix searches name, URI, and pin together
+        </p>
+        <p style={{ margin: "0.3rem 0" }}>
+          • Multiple filters are ANDed together
         </p>
         <p style={{ margin: "0.3rem 0" }}>
           • Within a workflow, search is scoped to its steps

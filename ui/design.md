@@ -25,7 +25,7 @@ Styling uses inline styles throughout. No CSS framework is used.
 
 ```
 /                                                → UploadPage (landing)
-/search?q=&field=&scope=&workflowId=&from=&to=  → SearchPage (advanced search)
+/search?q=&name=&uri=&pin=&path=&scope=&workflowId=&from=&to=  → SearchPage (advanced search)
 /workflows/:workflowId                           → WorkflowView (top-level DAG)
 /workflows/:workflowId/steps/:uuid               → StepView (sub-step DAG or leaf detail)
 /workflows/:workflowId/logs?stepPath=             → LogsPage (dedicated full-page log viewer)
@@ -100,7 +100,7 @@ interface Metadata {
 
 Typed fetch wrappers for every API endpoint — `uploadWorkflow`, `getWorkflow`, `getSteps`, `getStepDetail`, `lookupStep`, `getLogs`, `search`, `getBreadcrumbs`. All requests go to `/api` which Vite proxies to `:3001` in dev and nginx forwards in production.
 
-`search(q, options?)` calls `GET /api/search` with optional `scope`, `workflowId`, `field`, `from`, `to`, and `limit` parameters, returning a `SearchResponse`.
+`search(q, options?)` calls `GET /api/search` with `q` plus optional per-field params (`name`, `uri`, `pin`, `path`), `scope`, `workflowId`, `from`, `to`, and `limit` parameters, returning a `SearchResponse`. All provided fields are ANDed by the server.
 
 `getBreadcrumbs(workflowId, stepPath)` calls `GET /api/workflows/:id/breadcrumbs?stepPath=`, returning a `BreadcrumbsResponse` with the full ancestor chain for a given hierarchy path. Used by `LogsPage` to render its breadcrumb bar.
 
@@ -198,38 +198,41 @@ Behavior:
 - Auto-focuses the text input on open (50 ms delay to allow mount)
 - Registers a global `keydown` listener for Escape while open; if the help panel is open, Escape closes the panel instead of the palette
 - Debounces API calls (400 ms) to `GET /api/search` as the user types
-- Supports prefix syntax (`name:`, `uri:`, `pin:`, `path:`) via `parseSearchQuery` — a pure function defined inline. When a prefix is detected, the matched `field` is passed to the API and a prefix indicator bar (`data-testid="prefix-indicator"`) is shown below the input with a colored pill and a `×` button to strip the prefix. Wrapping the query in double quotes bypasses prefix parsing and searches the literal text.
-- A `?` help button (`data-testid="search-help-button"`, `title` tooltip) toggles a help panel (`data-testid="search-help-panel"`) that replaces the results area and describes all prefixes, escaping, and tips. Typing in the input closes the help panel.
-- Footer shows keyboard hints and an "Advanced Search →" button (`data-testid="advanced-search-link"`) that closes the palette and navigates to `/search`, pre-filling `q`, `field`, and `workflowId` as URL params.
+- Supports multi-prefix syntax (`name:`, `uri:`, `pin:`, `path:`) via `parseSearchQuery` — a pure function defined inline. Multiple prefixes can be combined in a single query (e.g., `name:build pin:abc`). When prefixes are detected, a prefix indicator bar (`data-testid="prefix-indicator"`) is shown below the input with one colored pill per active field and a `×` button on each pill to remove only that prefix. Invalid prefixes (unrecognized words before `:`) are shown as red pills (`data-testid="invalid-prefix"`) and are treated as bare search terms. Wrapping the entire query in double quotes bypasses all prefix parsing and searches the literal text.
+- A `?` help button (`data-testid="search-help-button"`, `title` tooltip) toggles a help panel (`data-testid="search-help-panel"`) that replaces the results area and describes all prefixes, multi-prefix syntax, quoting, and tips. Typing in the input closes the help panel.
+- Footer shows keyboard hints and an "Advanced Search →" button (`data-testid="advanced-search-link"`) that closes the palette and navigates to `/search`, pre-filling all active per-field params (`q`, `name`, `uri`, `pin`, `path`) and `workflowId` as URL params.
 - Renders results with `StatusBadge`, step/workflow name, hierarchy path or URI, and a type badge
 - Arrow keys move selection; Enter or click navigates and closes the palette
 - Element has `data-testid="command-palette"`, input has `data-testid="command-palette-input"`, each result row has `data-testid="search-result"`
 
 ### `SearchPage` — `src/pages/SearchPage.tsx`
 
-Standalone route at `/search` (not nested under `WorkflowLayout`). Reads all filter values from URL search params (`q`, `field`, `scope`, `workflowId`, `from`, `to`) as the committed state. Renders a minimal header with the app name linking to `/`, then a two-section layout:
+Standalone route at `/search` (not nested under `WorkflowLayout`). Reads all filter values from URL search params (`q`, `name`, `uri`, `pin`, `path`, `scope`, `workflowId`, `from`, `to`) as the committed state. Renders a minimal header with the app name linking to `/`, then a two-section layout:
 
 1. `SearchForm` — pre-filled from URL params, calls `setSearchParams` on submit
 2. `SearchResultsTable` — displays query results or loading/empty states
 
-Uses TanStack Query with key `['search', q, field, scope, workflowId, from, to]`, enabled only when `q` is non-empty. `staleTime` is 0. Date values from the form (`YYYY-MM-DD`) are converted to RFC 3339 timestamps (`T00:00:00Z` for `from`, `T23:59:59Z` for `to`) before the API call. Element has `data-testid="search-page"`.
+Uses TanStack Query with key `['search', q, name, uri, pin, path, scope, workflowId, from, to]`, enabled when at least one of `q`, `name`, `uri`, `pin`, or `path` is non-empty. `staleTime` is 0. Date values from the form (`YYYY-MM-DD`) are converted to RFC 3339 timestamps (`T00:00:00Z` for `from`, `T23:59:59Z` for `to`) before the API call. Element has `data-testid="search-page"`.
 
 ### `SearchForm` — `src/components/SearchForm.tsx`
 
-Filter form for the advanced search page. Accepts `initialValues` and `onSubmit` props. Maintains local controlled state for all fields; submits on button click or Enter from the text input. The "Clear" button resets all fields to empty and calls `onSubmit` immediately with empty values.
+Filter form for the advanced search page. Accepts `initialValues` and `onSubmit` props. Maintains local controlled state for all fields; submits on button click or Enter from any text input. The "Clear" button resets all fields to empty and calls `onSubmit` immediately with empty values.
 
 Controls:
 
-| Control     | Type            | Maps to API param |
-| ----------- | --------------- | ----------------- |
-| Search term | Text input      | `q`               |
-| Field       | Select dropdown | `field`           |
-| Scope       | Select dropdown | `scope`           |
-| Workflow ID | Text input      | `workflowId`      |
-| From        | Date input      | `from`            |
-| To          | Date input      | `to`              |
+| Control        | Type       | Maps to API param | Test ID             |
+| -------------- | ---------- | ----------------- | ------------------- |
+| General search | Text input | `q`               | `search-input-q`    |
+| Name           | Text input | `name`            | `search-input-name` |
+| URI            | Text input | `uri`             | `search-input-uri`  |
+| Pin            | Text input | `pin`             | `search-input-pin`  |
+| Path           | Text input | `path`            | `search-input-path` |
+| Scope          | Select     | `scope`           | —                   |
+| Workflow ID    | Text input | `workflowId`      | —                   |
+| From           | Date input | `from`            | —                   |
+| To             | Date input | `to`              | —                   |
 
-The Workflow ID input is disabled when scope is `"workflows"`. Field options: `All fields`, `Name`, `URI`, `Pin`, `Path`. Scope options: `All`, `Workflows`, `Steps`. Form has `data-testid="search-form"`.
+There is no "Field" dropdown — each field has its own labeled text input. The Workflow ID input is disabled when scope is `"workflows"`. Scope options: `All`, `Workflows`, `Steps`. At least one of `q`, `name`, `uri`, `pin`, or `path` must be non-empty for the search to execute. Form has `data-testid="search-form"`.
 
 ### `SearchResultsTable` — `src/components/SearchResultsTable.tsx`
 
@@ -391,11 +394,11 @@ A `CommandPalette` overlay is accessible from `WorkflowHeader` (within any workf
 - **Within a workflow view**: `workflowId` is passed to `CommandPalette`, so the default search scope is `"steps"` within that workflow. Results navigate to `/workflows/:id/steps/:uuid`.
 - **On the landing page**: `CommandPalette` without `workflowId` results in searches scoped to both workflows and steps; `NavigateForm` handles exact-ID lookup.
 
-As the user types, requests are debounced (400 ms) to `GET /api/search`. The palette supports prefix syntax (`name:`, `uri:`, `pin:`, `path:`) — when detected, the matched field is sent to the API and a visual indicator bar is shown. Wrapping the query in double quotes bypasses prefix parsing. Results are rendered with a status badge, name, and hierarchy path or URI. Arrow keys navigate the list; Enter or click selects. Escape or clicking the backdrop closes the palette (if the help panel is open, Escape closes the panel first).
+As the user types, requests are debounced (400 ms) to `GET /api/search`. The palette supports multi-prefix syntax (`name:`, `uri:`, `pin:`, `path:`) — multiple prefixes can be combined in one query (e.g., `name:build pin:abc`). When prefixes are detected, a prefix indicator bar shows one pill per active field; each pill has a `×` to remove only that prefix. Invalid prefixes are shown as red pills and treated as bare terms. Wrapping the entire query in double quotes bypasses prefix parsing. Results are rendered with a status badge, name, and hierarchy path or URI. Arrow keys navigate the list; Enter or click selects. Escape or clicking the backdrop closes the palette (if the help panel is open, Escape closes the panel first).
 
 ### Advanced Search Flow
 
-The user navigates to `/search` via the "Advanced Search" link in the palette footer, the link on `UploadPage`, or directly. The palette forwards the current query, detected field, and `workflowId` context as URL params. On the search page the user fills the filter form and submits — URL params update (making the state bookmarkable), TanStack Query fetches results, and the results table renders. Clicking a row navigates to the workflow or step view.
+The user navigates to `/search` via the "Advanced Search" link in the palette footer, the link on `UploadPage`, or directly. The palette forwards all active per-field params (`q`, `name`, `uri`, `pin`, `path`) and `workflowId` context as URL params. On the search page the user fills the per-field filter inputs and submits — URL params update (making the state bookmarkable), TanStack Query fetches results, and the results table renders. Clicking a row navigates to the workflow or step view.
 
 ### Home Navigation Flow
 

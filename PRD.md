@@ -90,19 +90,20 @@ A web-based user interface designed to visualize, inspect, and debug CI/CD workf
 
 ### CUJ 8: Field-Scoped Search via Command Palette
 
-- The user can scope their search to a specific field by typing a prefix in the command palette: `name:`, `uri:`, `pin:`, or `path:`.
-- When a prefix is detected, the palette shows a visual indicator (colored pill with the field name) and the extracted search term, so the user can confirm what is being searched.
-- The user can dismiss the detected prefix by clicking `×` on the indicator pill.
-- If the user needs to search for text that starts with a prefix-like pattern (e.g., the literal string `name:foo`), they can wrap the query in double quotes to bypass prefix detection.
-- A `?` help button in the palette provides a quick reference for supported prefixes, quoting syntax, and search tips. Hovering over the button shows a tooltip; clicking it shows the full help reference in the results area.
+- The user can scope their search to one or more specific fields by typing prefixes in the command palette: `name:`, `uri:`, `pin:`, or `path:`. Multiple prefixes can be combined in a single query (e.g., `name:build pin:abc`), and all active filters are ANDed together.
+- When prefixes are detected, the palette shows a colored pill per active field. Each pill has a `×` button to remove only that prefix while keeping others.
+- Bare (unprefixed) terms are combined into a general search that matches across name, URI, and pin.
+- Unrecognized prefixes (e.g., `blah:hello`) are highlighted in red and treated as bare search terms.
+- If the user needs to search for text that starts with a prefix-like pattern (e.g., the literal string `name:foo`), they can wrap the entire query in double quotes to bypass all prefix detection.
+- A `?` help button in the palette provides a quick reference for supported prefixes, multi-prefix syntax, quoting, and search tips. Hovering over the button shows a tooltip; clicking it shows the full help reference in the results area.
 
 ### CUJ 9: Advanced Search Page
 
 - The user can navigate to a dedicated search page for complex queries that go beyond what the command palette offers.
-- The search page provides form controls for: search term, field selection (dropdown), scope (all/workflows/steps), workflow ID, and date range (from/to date pickers).
+- The search page provides individual text inputs for each field: general search (`q`), name, URI, pin, and path — plus scope (all/workflows/steps), workflow ID, and date range (from/to date pickers). Any combination of fields can be filled; all non-empty inputs are ANDed together.
 - Results are displayed in a table with columns for type, status, name, location (URI or hierarchy path), and start time. Clicking a result navigates to the workflow or step.
 - All search parameters are reflected in the URL, making searches shareable and bookmarkable.
-- The advanced search page is accessible from the command palette footer ("Advanced Search" link), which pre-fills the current query and detected prefix. It is also accessible from the landing page.
+- The advanced search page is accessible from the command palette footer ("Advanced Search" link), which pre-fills all active per-field filters from the palette query. It is also accessible from the landing page.
 
 ## 5. Non-Functional Requirements
 

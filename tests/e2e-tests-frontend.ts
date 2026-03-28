@@ -1640,8 +1640,11 @@ describe("[24] Command Palette — Prefix Search", () => {
         await indicator.waitFor({ timeout: 5_000 });
         expect(await indicator.isVisible()).toBe(true);
 
-        const indicatorText = await indicator.textContent();
-        expect(indicatorText?.toLowerCase()).toContain("name");
+        const pills = page.locator('[data-testid="prefix-pill"]');
+        await pills.first().waitFor({ timeout: 5_000 });
+        expect(await pills.count()).toBe(1);
+        const pillText = await pills.first().textContent();
+        expect(pillText?.toLowerCase()).toContain("name");
 
         await page
           .locator('[data-testid="search-result"]')
@@ -1679,8 +1682,10 @@ describe("[24] Command Palette — Prefix Search", () => {
         await indicator.waitFor({ timeout: 5_000 });
         expect(await indicator.isVisible()).toBe(true);
 
-        const indicatorText = await indicator.textContent();
-        expect(indicatorText?.toLowerCase()).toContain("uri");
+        const pills = page.locator('[data-testid="prefix-pill"]');
+        await pills.first().waitFor({ timeout: 5_000 });
+        const pillText = await pills.first().textContent();
+        expect(pillText?.toLowerCase()).toContain("uri");
 
         // Wait for API response — results or empty state
         await page.waitForTimeout(600);
@@ -1719,8 +1724,10 @@ describe("[24] Command Palette — Prefix Search", () => {
         await indicator.waitFor({ timeout: 5_000 });
         expect(await indicator.isVisible()).toBe(true);
 
-        const indicatorText = await indicator.textContent();
-        expect(indicatorText?.toLowerCase()).toContain("path");
+        const pills = page.locator('[data-testid="prefix-pill"]');
+        await pills.first().waitFor({ timeout: 5_000 });
+        const pillText = await pills.first().textContent();
+        expect(pillText?.toLowerCase()).toContain("path");
 
         await page
           .locator('[data-testid="search-result"]')
@@ -1774,7 +1781,7 @@ describe("[24] Command Palette — Prefix Search", () => {
   );
 
   test(
-    "[24.5] clicking × on the prefix pill removes the prefix from the input",
+    "[24.5] clicking × on a pill removes only that prefix from the input",
     async () => {
       const ctx = await browser.newContext();
       const page = await ctx.newPage();
@@ -1789,26 +1796,32 @@ describe("[24] Command Palette — Prefix Search", () => {
 
         await page
           .locator('[data-testid="command-palette-input"]')
-          .fill("name:Build");
+          .fill("name:Build pin:abc");
 
         const indicator = page.locator('[data-testid="prefix-indicator"]');
         await indicator.waitFor({ timeout: 5_000 });
 
-        // Click the × button inside the prefix indicator
-        await indicator.locator("button").click();
+        const pills = page.locator('[data-testid="prefix-pill"]');
+        await pills.nth(1).waitFor({ timeout: 5_000 });
+        expect(await pills.count()).toBe(2);
+
+        // Click × on the first pill ("name")
+        await pills.first().locator("button").click();
 
         await page.waitForFunction(
-          () => !document.querySelector('[data-testid="prefix-indicator"]'),
+          () =>
+            document.querySelectorAll('[data-testid="prefix-pill"]').length ===
+            1,
           { timeout: 5_000 },
         );
-        expect(
-          await page.locator('[data-testid="prefix-indicator"]').count(),
-        ).toBe(0);
+        expect(await pills.count()).toBe(1);
+        const remainingText = await pills.first().textContent();
+        expect(remainingText?.toLowerCase()).toContain("pin");
 
         const inputValue = await page
           .locator('[data-testid="command-palette-input"]')
           .inputValue();
-        expect(inputValue).toBe("Build");
+        expect(inputValue).toBe("pin:abc");
       } finally {
         await ctx.close();
       }
@@ -1839,6 +1852,211 @@ describe("[24] Command Palette — Prefix Search", () => {
         expect(
           await page.locator('[data-testid="prefix-indicator"]').count(),
         ).toBe(0);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "[24.7] multi-prefix name:Build pin:abc shows two pills",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(workflowViewUrl);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .fill("name:Build pin:abc");
+
+        const indicator = page.locator('[data-testid="prefix-indicator"]');
+        await indicator.waitFor({ timeout: 5_000 });
+        expect(await indicator.isVisible()).toBe(true);
+
+        const pills = page.locator('[data-testid="prefix-pill"]');
+        await pills.nth(1).waitFor({ timeout: 5_000 });
+        expect(await pills.count()).toBe(2);
+
+        const texts = await pills.allTextContents();
+        expect(texts.some((t) => t.toLowerCase().includes("name"))).toBe(true);
+        expect(texts.some((t) => t.toLowerCase().includes("pin"))).toBe(true);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "[24.8] multi-prefix with bare term: name:Build extra shows 1 pill",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(workflowViewUrl);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .fill("name:Build extra");
+
+        const indicator = page.locator('[data-testid="prefix-indicator"]');
+        await indicator.waitFor({ timeout: 5_000 });
+
+        const pills = page.locator('[data-testid="prefix-pill"]');
+        await pills.first().waitFor({ timeout: 5_000 });
+        expect(await pills.count()).toBe(1);
+        const pillText = await pills.first().textContent();
+        expect(pillText?.toLowerCase()).toContain("name");
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "[24.9] invalid prefix blah:hello shows red indicator",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(workflowViewUrl);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .fill("blah:hello");
+
+        const invalidPill = page.locator('[data-testid="invalid-prefix"]');
+        await invalidPill.waitFor({ timeout: 5_000 });
+        expect(await invalidPill.isVisible()).toBe(true);
+        const pillText = await invalidPill.textContent();
+        expect(pillText?.toLowerCase()).toContain("blah");
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "[24.10] invalid prefix mixed with valid: blah:hello name:Build",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(workflowViewUrl);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .fill("blah:hello name:Build");
+
+        const indicator = page.locator('[data-testid="prefix-indicator"]');
+        await indicator.waitFor({ timeout: 5_000 });
+
+        const validPills = page.locator('[data-testid="prefix-pill"]');
+        await validPills.first().waitFor({ timeout: 5_000 });
+        expect(await validPills.count()).toBe(1);
+        const pillText = await validPills.first().textContent();
+        expect(pillText?.toLowerCase()).toContain("name");
+
+        const invalidPill = page.locator('[data-testid="invalid-prefix"]');
+        await invalidPill.waitFor({ timeout: 5_000 });
+        expect(await invalidPill.count()).toBe(1);
+        const invalidText = await invalidPill.textContent();
+        expect(invalidText?.toLowerCase()).toContain("blah");
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    '[24.11] quoted value with spaces: name:"hello world" shows pill',
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(workflowViewUrl);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .fill('name:"hello world"');
+
+        const indicator = page.locator('[data-testid="prefix-indicator"]');
+        await indicator.waitFor({ timeout: 5_000 });
+
+        const pills = page.locator('[data-testid="prefix-pill"]');
+        await pills.first().waitFor({ timeout: 5_000 });
+        expect(await pills.count()).toBe(1);
+        const pillText = await pills.first().textContent();
+        expect(pillText?.toLowerCase()).toContain("name");
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "[24.12] duplicate prefix: last value wins — only 1 pill for name",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(workflowViewUrl);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .fill("name:foo name:bar");
+
+        const indicator = page.locator('[data-testid="prefix-indicator"]');
+        await indicator.waitFor({ timeout: 5_000 });
+
+        const pills = page.locator('[data-testid="prefix-pill"]');
+        await pills.first().waitFor({ timeout: 5_000 });
+        // Only 1 pill even though prefix appears twice (last wins)
+        expect(await pills.count()).toBe(1);
+        const pillText = await pills.first().textContent();
+        expect(pillText?.toLowerCase()).toContain("name");
       } finally {
         await ctx.close();
       }
@@ -1913,6 +2131,12 @@ describe("[25] Command Palette — Help Panel", () => {
         expect(panelText).toContain("pin:");
         expect(panelText).toContain("path:");
         expect(panelText?.toLowerCase()).toContain("quot");
+        // Multi-prefix docs
+        expect(
+          panelText?.toLowerCase().includes("combine") ||
+            panelText?.toLowerCase().includes("multiple"),
+        ).toBe(true);
+        expect(panelText).toContain("pin:abc");
       } finally {
         await ctx.close();
       }
@@ -2109,7 +2333,7 @@ describe("[26] Command Palette — Advanced Search Link", () => {
   );
 
   test(
-    '[26.3] clicking "Advanced Search" with a prefix query pre-fills URL params',
+    '[26.3] clicking "Advanced Search" with a multi-prefix query pre-fills per-field URL params',
     async () => {
       const ctx = await browser.newContext();
       const page = await ctx.newPage();
@@ -2124,7 +2348,43 @@ describe("[26] Command Palette — Advanced Search Link", () => {
 
         await page
           .locator('[data-testid="command-palette-input"]')
-          .fill("name:Build");
+          .fill("name:Build pin:abc");
+        await page
+          .locator('[data-testid="prefix-pill"]')
+          .nth(1)
+          .waitFor({ timeout: 5_000 });
+
+        await page.locator('[data-testid="advanced-search-link"]').click();
+
+        await page.waitForURL(/\/search/, { timeout: 10_000 });
+        const url = new URL(page.url());
+        expect(url.searchParams.get("name")).toBe("Build");
+        expect(url.searchParams.get("pin")).toBe("abc");
+        expect(url.searchParams.has("field")).toBe(false);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    '[26.5] "Advanced Search" with bare + prefix forwards both q and named param',
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(workflowViewUrl);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .fill("name:Build extra");
         await page
           .locator('[data-testid="prefix-indicator"]')
           .waitFor({ timeout: 5_000 });
@@ -2133,8 +2393,8 @@ describe("[26] Command Palette — Advanced Search Link", () => {
 
         await page.waitForURL(/\/search/, { timeout: 10_000 });
         const url = new URL(page.url());
-        expect(url.searchParams.get("q")).toBe("Build");
-        expect(url.searchParams.get("field")).toBe("name");
+        expect(url.searchParams.get("q")).toBe("extra");
+        expect(url.searchParams.get("name")).toBe("Build");
       } finally {
         await ctx.close();
       }
@@ -2189,7 +2449,7 @@ describe("[27] Advanced Search Page — Rendering & Controls", () => {
   });
 
   test(
-    "[27.1] `/search` route renders the search page with all form controls",
+    "[27.1] `/search` route renders the search page with per-field inputs",
     async () => {
       const ctx = await browser.newContext();
       const page = await ctx.newPage();
@@ -2205,9 +2465,22 @@ describe("[27] Advanced Search Page — Rendering & Controls", () => {
         ).toBe(true);
 
         expect(
-          await page.locator('input[type="text"]').count(),
-        ).toBeGreaterThanOrEqual(1);
-        expect(await page.locator("select").count()).toBeGreaterThanOrEqual(2);
+          await page.locator('[data-testid="search-input-q"]').isVisible(),
+        ).toBe(true);
+        expect(
+          await page.locator('[data-testid="search-input-name"]').isVisible(),
+        ).toBe(true);
+        expect(
+          await page.locator('[data-testid="search-input-uri"]').isVisible(),
+        ).toBe(true);
+        expect(
+          await page.locator('[data-testid="search-input-pin"]').isVisible(),
+        ).toBe(true);
+        expect(
+          await page.locator('[data-testid="search-input-path"]').isVisible(),
+        ).toBe(true);
+        // scope dropdown exists; no field dropdown
+        expect(await page.locator("select").count()).toBe(1);
         expect(await page.locator('input[type="date"]').count()).toBe(2);
         expect(
           await page.locator('button[type="submit"]').count(),
@@ -2220,7 +2493,7 @@ describe("[27] Advanced Search Page — Rendering & Controls", () => {
   );
 
   test(
-    "[27.2] search form submits and displays results in a table",
+    "[27.2] submit with general search shows results",
     async () => {
       const ctx = await browser.newContext();
       const page = await ctx.newPage();
@@ -2229,8 +2502,7 @@ describe("[27] Advanced Search Page — Rendering & Controls", () => {
         await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
 
         await page
-          .locator('input[type="text"]')
-          .first()
+          .locator('[data-testid="search-input-q"]')
           .fill("nested-hierarchy");
         await page.locator('button[type="submit"]').click();
 
@@ -2251,7 +2523,7 @@ describe("[27] Advanced Search Page — Rendering & Controls", () => {
   );
 
   test(
-    "[27.3] selecting a field restricts search results",
+    "[27.3] submit with name field shows results",
     async () => {
       const ctx = await browser.newContext();
       const page = await ctx.newPage();
@@ -2259,11 +2531,8 @@ describe("[27] Advanced Search Page — Rendering & Controls", () => {
         await page.goto(`${UI_BASE}/search`);
         await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
 
-        // Select the field dropdown (first select is "field")
-        await page.locator("select").first().selectOption("name");
         await page
-          .locator('input[type="text"]')
-          .first()
+          .locator('[data-testid="search-input-name"]')
           .fill("nested-hierarchy");
         await page.locator('button[type="submit"]').click();
 
@@ -2292,8 +2561,7 @@ describe("[27] Advanced Search Page — Rendering & Controls", () => {
         await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
 
         await page
-          .locator('input[type="text"]')
-          .first()
+          .locator('[data-testid="search-input-q"]')
           .fill("zzz-nonexistent-query-zzz");
         await page.locator('button[type="submit"]').click();
 
@@ -2311,7 +2579,46 @@ describe("[27] Advanced Search Page — Rendering & Controls", () => {
   );
 
   test(
-    '[27.5] "Clear" button resets all filters',
+    '[27.5] "Clear" button resets all field inputs',
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(`${UI_BASE}/search`);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page.locator('[data-testid="search-input-q"]').fill("test");
+        await page.locator('[data-testid="search-input-name"]').fill("hello");
+        await page.locator('[data-testid="search-input-pin"]').fill("abc");
+        await page.locator("select").first().selectOption("workflows");
+
+        await page.getByRole("button", { name: "Clear" }).click();
+
+        expect(
+          await page.locator('[data-testid="search-input-q"]').inputValue(),
+        ).toBe("");
+        expect(
+          await page.locator('[data-testid="search-input-name"]').inputValue(),
+        ).toBe("");
+        expect(
+          await page.locator('[data-testid="search-input-pin"]').inputValue(),
+        ).toBe("");
+        expect(await page.locator("select").first().inputValue()).toBe("");
+        expect(
+          await page.locator('input[type="date"]').first().inputValue(),
+        ).toBe("");
+        expect(
+          await page.locator('input[type="date"]').nth(1).inputValue(),
+        ).toBe("");
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "[27.6] multi-field search name + pin shows results",
     async () => {
       const ctx = await browser.newContext();
       const page = await ctx.newPage();
@@ -2320,25 +2627,46 @@ describe("[27] Advanced Search Page — Rendering & Controls", () => {
         await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
 
         await page
-          .locator('input[type="text"]')
-          .first()
-          .fill("nested-hierarchy");
-        await page.locator("select").first().selectOption("uri");
-        await page.locator("select").nth(1).selectOption("workflows");
+          .locator('[data-testid="search-input-name"]')
+          .fill("simple-linear");
+        await page.locator('[data-testid="search-input-pin"]').fill("abc123");
+        await page.locator('button[type="submit"]').click();
 
-        await page.getByRole("button", { name: "Clear" }).click();
+        const table = page.locator('[data-testid="search-results-table"]');
+        await table.waitFor({ timeout: 10_000 });
+        expect(await table.locator("tbody tr").count()).toBeGreaterThanOrEqual(
+          1,
+        );
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
 
+  test(
+    "[27.7] multi-field search with no match shows empty state",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(`${UI_BASE}/search`);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page
+          .locator('[data-testid="search-input-name"]')
+          .fill("simple-linear");
+        await page
+          .locator('[data-testid="search-input-pin"]')
+          .fill("wrong-pin");
+        await page.locator('button[type="submit"]').click();
+
+        await page
+          .locator('[data-testid="search-empty"]')
+          .waitFor({ timeout: 10_000 });
         expect(
-          await page.locator('input[type="text"]').first().inputValue(),
-        ).toBe("");
-        expect(await page.locator("select").first().inputValue()).toBe("");
-        expect(await page.locator("select").nth(1).inputValue()).toBe("");
-        expect(
-          await page.locator('input[type="date"]').first().inputValue(),
-        ).toBe("");
-        expect(
-          await page.locator('input[type="date"]').nth(1).inputValue(),
-        ).toBe("");
+          await page.locator('[data-testid="search-empty"]').isVisible(),
+        ).toBe(true);
       } finally {
         await ctx.close();
       }
@@ -2362,7 +2690,7 @@ describe("[28] Advanced Search Page — URL State & Navigation", () => {
   });
 
   test(
-    "[28.1] submitting a search updates the URL with query params",
+    "[28.1] submitting a search updates the URL with per-field params",
     async () => {
       const ctx = await browser.newContext();
       const page = await ctx.newPage();
@@ -2370,14 +2698,15 @@ describe("[28] Advanced Search Page — URL State & Navigation", () => {
         await page.goto(`${UI_BASE}/search`);
         await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
 
-        await page.locator('input[type="text"]').first().fill("Build");
-        await page.locator("select").first().selectOption("name");
+        await page.locator('[data-testid="search-input-name"]').fill("Build");
+        await page.locator('[data-testid="search-input-pin"]').fill("abc");
         await page.locator('button[type="submit"]').click();
 
-        await page.waitForURL(/q=Build/, { timeout: 10_000 });
+        await page.waitForURL(/name=Build/, { timeout: 10_000 });
         const url = new URL(page.url());
-        expect(url.searchParams.get("q")).toBe("Build");
-        expect(url.searchParams.get("field")).toBe("name");
+        expect(url.searchParams.get("name")).toBe("Build");
+        expect(url.searchParams.get("pin")).toBe("abc");
+        expect(url.searchParams.has("field")).toBe(false);
       } finally {
         await ctx.close();
       }
@@ -2386,16 +2715,16 @@ describe("[28] Advanced Search Page — URL State & Navigation", () => {
   );
 
   test(
-    "[28.2] navigating directly to `/search?q=nested-hierarchy` loads with pre-filled form and results",
+    "[28.2] navigating directly to `/search?name=nested-hierarchy` loads with pre-filled form and results",
     async () => {
       const ctx = await browser.newContext();
       const page = await ctx.newPage();
       try {
-        await page.goto(`${UI_BASE}/search?q=nested-hierarchy`);
+        await page.goto(`${UI_BASE}/search?name=nested-hierarchy`);
         await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
 
         expect(
-          await page.locator('input[type="text"]').first().inputValue(),
+          await page.locator('[data-testid="search-input-name"]').inputValue(),
         ).toBe("nested-hierarchy");
 
         await page
@@ -2415,19 +2744,21 @@ describe("[28] Advanced Search Page — URL State & Navigation", () => {
   );
 
   test(
-    "[28.3] navigating to `/search?q=Build&field=name&scope=steps` pre-fills all controls",
+    "[28.3] navigating to `/search?q=Build&name=hello&scope=steps` pre-fills all controls",
     async () => {
       const ctx = await browser.newContext();
       const page = await ctx.newPage();
       try {
-        await page.goto(`${UI_BASE}/search?q=Build&field=name&scope=steps`);
+        await page.goto(`${UI_BASE}/search?q=Build&name=hello&scope=steps`);
         await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
 
         expect(
-          await page.locator('input[type="text"]').first().inputValue(),
+          await page.locator('[data-testid="search-input-q"]').inputValue(),
         ).toBe("Build");
-        expect(await page.locator("select").first().inputValue()).toBe("name");
-        expect(await page.locator("select").nth(1).inputValue()).toBe("steps");
+        expect(
+          await page.locator('[data-testid="search-input-name"]').inputValue(),
+        ).toBe("hello");
+        expect(await page.locator("select").first().inputValue()).toBe("steps");
       } finally {
         await ctx.close();
       }
@@ -2501,8 +2832,7 @@ describe("[28] Advanced Search Page — URL State & Navigation", () => {
         const past = "2020-01-01";
 
         await page
-          .locator('input[type="text"]')
-          .first()
+          .locator('[data-testid="search-input-q"]')
           .fill("nested-hierarchy");
         await page.locator('input[type="date"]').first().fill(past);
         await page.locator('input[type="date"]').nth(1).fill(today);
@@ -2528,6 +2858,48 @@ describe("[28] Advanced Search Page — URL State & Navigation", () => {
         expect(
           await page.locator('[data-testid="search-empty"]').isVisible(),
         ).toBe(true);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "[28.7] URL with multiple field params pre-fills inputs and shows results",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        const result = await uploadFixture("simple-linear.json");
+        const simpleId = result.workflowId;
+        try {
+          await page.goto(
+            `${UI_BASE}/search?name=simple-linear&pin=abc123&scope=workflows`,
+          );
+          await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+          expect(
+            await page
+              .locator('[data-testid="search-input-name"]')
+              .inputValue(),
+          ).toBe("simple-linear");
+          expect(
+            await page.locator('[data-testid="search-input-pin"]').inputValue(),
+          ).toBe("abc123");
+
+          await page
+            .locator('[data-testid="search-results-table"]')
+            .waitFor({ timeout: 10_000 });
+          expect(
+            await page
+              .locator('[data-testid="search-results-table"]')
+              .locator("tbody tr")
+              .count(),
+          ).toBeGreaterThanOrEqual(1);
+        } finally {
+          await deleteWorkflow(simpleId);
+        }
       } finally {
         await ctx.close();
       }

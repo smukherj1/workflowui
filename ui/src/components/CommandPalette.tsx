@@ -16,31 +16,73 @@ interface Props {
 }
 
 interface ParsedQuery {
-  field: "name" | "uri" | "pin" | "path" | null;
-  term: string;
+  q: string | null;
+  name: string | null;
+  uri: string | null;
+  pin: string | null;
+  path: string | null;
+  invalidPrefixes: string[];
 }
+
+type ValidPrefixKey = "name" | "uri" | "pin" | "path";
+const VALID_PREFIXES = new Set<ValidPrefixKey>(["name", "uri", "pin", "path"]);
+const TOKEN_RE = /(\w+):"([^"]*)"?|(\w+):(\S+)|"([^"]*)"|(\S+)/g;
 
 function parseSearchQuery(raw: string): ParsedQuery {
   const trimmed = raw.trim();
 
-  // Quoted query — strip outer quotes, no prefix parsing
+  // Quoted entire input — strip outer quotes, no prefix parsing
   if (trimmed.startsWith('"') && trimmed.endsWith('"') && trimmed.length >= 2) {
-    return { field: null, term: trimmed.slice(1, -1) };
+    return {
+      q: trimmed.slice(1, -1),
+      name: null,
+      uri: null,
+      pin: null,
+      path: null,
+      invalidPrefixes: [],
+    };
   }
 
-  // Check for recognized prefix at start of string
-  const prefixes = ["name:", "uri:", "pin:", "path:"] as const;
-  for (const prefix of prefixes) {
-    if (trimmed.startsWith(prefix)) {
-      return {
-        field: prefix.slice(0, -1) as ParsedQuery["field"],
-        term: trimmed.slice(prefix.length).trim(),
-      };
+  const result: ParsedQuery = {
+    q: null,
+    name: null,
+    uri: null,
+    pin: null,
+    path: null,
+    invalidPrefixes: [],
+  };
+  const bareTerms: string[] = [];
+
+  for (const m of trimmed.matchAll(TOKEN_RE)) {
+    const [, prefix1, quotedVal, prefix2, unquotedVal, bareQuoted, bareWord] =
+      m;
+
+    if (prefix1 !== undefined) {
+      if (VALID_PREFIXES.has(prefix1 as ValidPrefixKey)) {
+        result[prefix1 as ValidPrefixKey] = quotedVal ?? null;
+      } else {
+        if (!result.invalidPrefixes.includes(prefix1))
+          result.invalidPrefixes.push(prefix1);
+        bareTerms.push(`${prefix1}:"${quotedVal}"`);
+      }
+    } else if (prefix2 !== undefined) {
+      if (VALID_PREFIXES.has(prefix2 as ValidPrefixKey)) {
+        result[prefix2 as ValidPrefixKey] = unquotedVal ?? null;
+      } else {
+        if (!result.invalidPrefixes.includes(prefix2))
+          result.invalidPrefixes.push(prefix2);
+        bareTerms.push(`${prefix2}:${unquotedVal}`);
+      }
+    } else if (bareQuoted !== undefined) {
+      bareTerms.push(bareQuoted);
+    } else if (bareWord !== undefined) {
+      bareTerms.push(bareWord);
     }
   }
 
-  // No prefix
-  return { field: null, term: trimmed };
+  result.q = bareTerms.length > 0 ? bareTerms.join(" ") : null;
+
+  return result;
 }
 
 export default function CommandPalette({ open, onClose, workflowId }: Props) {
@@ -122,17 +164,17 @@ export default function CommandPalette({ open, onClose, workflowId }: Props) {
   //
   // When open is true and query changes:
   //   - Clears any pending debounce timer
-  //   - If the parsed term is empty: clears results immediately and returns
-  //   - Otherwise: starts a 400ms timer that calls the search API with the
-  //     parsed field, term, current scope (derived from workflowId), and workflowId
+  //   - If no parsed terms: clears results immediately and returns
+  //   - Otherwise: starts a 400ms timer that calls the search API with all
+  //     parsed per-field params, current scope (derived from workflowId), and workflowId
   //   - On API success: sets results and resets selectedIndex to 0
   //   - On API failure: clears results
   //   - Sets loading true/false around the API call
   useEffect(() => {
     if (!open) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    const { field, term } = parseSearchQuery(query);
-    if (!term) {
+    const { q, name, uri, pin, path } = parseSearchQuery(query);
+    if (!q && !name && !uri && !pin && !path) {
       setResults([]);
       return;
     }
@@ -140,10 +182,13 @@ export default function CommandPalette({ open, onClose, workflowId }: Props) {
       setLoading(true);
       try {
         const scope = workflowId ? "steps" : "all";
-        const resp = await search(term, {
+        const resp = await search(q, {
           scope,
           workflowId: workflowId || undefined,
-          field: field || undefined,
+          name: name || undefined,
+          uri: uri || undefined,
+          pin: pin || undefined,
+          path: path || undefined,
         });
         setResults(resp.results);
         setSelectedIndex(0);
@@ -193,11 +238,40 @@ export default function CommandPalette({ open, onClose, workflowId }: Props) {
   function handleAdvancedSearch() {
     onClose();
     const params = new URLSearchParams();
-    if (parsed.term) params.set("q", parsed.term);
-    if (parsed.field) params.set("field", parsed.field);
+    if (parsed.q) params.set("q", parsed.q);
+    if (parsed.name) params.set("name", parsed.name);
+    if (parsed.uri) params.set("uri", parsed.uri);
+    if (parsed.pin) params.set("pin", parsed.pin);
+    if (parsed.path) params.set("path", parsed.path);
     if (workflowId) params.set("workflowId", workflowId);
     const qs = params.toString();
     navigate(`/search${qs ? `?${qs}` : ""}`);
+  }
+
+  function handleRemovePrefix(field: string) {
+    const parts: string[] = [];
+    if (parsed.name && field !== "name")
+      parts.push(
+        parsed.name.includes(" ")
+          ? `name:"${parsed.name}"`
+          : `name:${parsed.name}`,
+      );
+    if (parsed.uri && field !== "uri")
+      parts.push(
+        parsed.uri.includes(" ") ? `uri:"${parsed.uri}"` : `uri:${parsed.uri}`,
+      );
+    if (parsed.pin && field !== "pin")
+      parts.push(
+        parsed.pin.includes(" ") ? `pin:"${parsed.pin}"` : `pin:${parsed.pin}`,
+      );
+    if (parsed.path && field !== "path")
+      parts.push(
+        parsed.path.includes(" ")
+          ? `path:"${parsed.path}"`
+          : `path:${parsed.path}`,
+      );
+    if (parsed.q) parts.push(parsed.q);
+    setQuery(parts.join(" "));
   }
 
   if (!open) return null;
@@ -244,13 +318,23 @@ export default function CommandPalette({ open, onClose, workflowId }: Props) {
           onToggleHelp={() => setShowHelp((v) => !v)}
           placeholder={placeholder}
         />
-        {parsed.field && !showHelp && (
-          <PalettePrefixIndicator
-            field={parsed.field}
-            term={parsed.term}
-            onDismiss={() => setQuery(parsed.term)}
-          />
-        )}
+        {(parsed.name ||
+          parsed.uri ||
+          parsed.pin ||
+          parsed.path ||
+          parsed.invalidPrefixes.length > 0) &&
+          !showHelp && (
+            <PalettePrefixIndicator
+              filters={[
+                ...(parsed.name ? [{ field: "name", value: parsed.name }] : []),
+                ...(parsed.uri ? [{ field: "uri", value: parsed.uri }] : []),
+                ...(parsed.pin ? [{ field: "pin", value: parsed.pin }] : []),
+                ...(parsed.path ? [{ field: "path", value: parsed.path }] : []),
+              ]}
+              invalidPrefixes={parsed.invalidPrefixes}
+              onRemove={handleRemovePrefix}
+            />
+          )}
         {showHelp ? (
           <PaletteHelpPanel />
         ) : (
