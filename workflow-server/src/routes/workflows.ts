@@ -13,12 +13,6 @@ const router = new Hono();
 
 // POST /api/workflows
 router.post("/", async (c) => {
-  // Size check
-  const contentLength = Number(c.req.header("content-length") ?? 0);
-  if (contentLength > 60 * 1024 * 1024) {
-    return c.json({ error: "Payload too large" }, 413);
-  }
-
   let body: unknown;
   try {
     body = await c.req.json();
@@ -34,17 +28,17 @@ router.post("/", async (c) => {
     );
   }
 
-  const structErr = validateStructureAndDAG(parsed.data as any);
+  const structErr = validateStructureAndDAG(parsed.data);
   if (structErr) {
     return c.json({ error: "STRUCTURAL_INVALID", details: structErr }, 400);
   }
 
   try {
     const host = c.req.header("host") ?? "localhost:3001";
-    const result = await insertWorkflow(parsed.data as any, host);
+    const result = await insertWorkflow(parsed.data, host);
     return c.json(result, 201);
   } catch (err) {
-    console.error("Upload error:", err);
+    console.error("POST /api/workflows: Upload error:", err);
     return c.json({ error: "Internal server error" }, 500);
   }
 });

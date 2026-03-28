@@ -84,8 +84,6 @@ app.get(
 );
 ```
 
-This replaces the previous AJV-based validation, providing compile-time type inference for all validated inputs.
-
 ---
 
 ## API Routes
@@ -278,12 +276,11 @@ Search uses `ILIKE` for case-insensitive substring matching. No special indexes 
 
 `POST /api/workflows` processes uploads in this order:
 
-1. **Size check** — reject if `Content-Length` > 60 MB
-2. **Zod schema validation** — validates structure, field types, and metadata shape
-3. **Structural limits** — walk tree: max 10,000 steps/level, max 100 deps/step, max 10 MB logs/leaf, max 50 MB total logs, max hierarchy depth 10
-4. **DAG validation** — DFS at each hierarchy level to detect cycles in `dependsOn` references
-5. **DB insert** — single transaction: insert workflow row; bulk-insert steps in two passes (pass 1: `unnest()` batches of 1000 to get UUIDs; pass 2: batch `UPDATE` to set `parent_step_id`); bulk-insert dependencies and logs via `unnest()` batches of 1000 (each row includes `workflow_id` for direct cascade)
-6. **Return** — `201 { workflowId, viewUrl }` or `400 { error, details }`
+1. **Zod schema validation** — validates structure, field types, and metadata shape
+2. **Structural limits** — walk tree: max 10,000 steps/level, max 100 deps/step, max 10 MB logs/leaf, max 50 MB total logs, max hierarchy depth 10
+3. **DAG validation** — DFS at each hierarchy level to detect cycles in `dependsOn` references
+4. **DB insert** — single transaction: insert workflow row; bulk-insert steps in two passes (pass 1: `unnest()` batches of 1000 to get UUIDs; pass 2: batch `UPDATE` to set `parent_step_id`); bulk-insert dependencies and logs via `unnest()` batches of 1000 (each row includes `workflow_id` for direct cascade)
+5. **Return** — `201 { workflowId, viewUrl }` or `400 { error, details }`
 
 ---
 
