@@ -193,7 +193,6 @@ For dev, the Vite dev server proxies `/api` requests to the Hono server.
 
 ## Future Work
 
-- Refactor ui command palette code.
 - UI search with multiple prefixes in command palette.
 - Better errors for workflow upload errors.
 - Incrementally upload a workflow.
