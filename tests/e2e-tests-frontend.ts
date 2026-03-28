@@ -2063,6 +2063,155 @@ describe("[24] Command Palette — Prefix Search", () => {
     },
     TEST_TIMEOUT,
   );
+
+  test(
+    "[24.13] typing `name:` (no value) shows prefix pill immediately",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(workflowViewUrl);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .fill("name:");
+
+        const indicator = page.locator('[data-testid="prefix-indicator"]');
+        await indicator.waitFor({ timeout: 5_000 });
+        expect(await indicator.isVisible()).toBe(true);
+
+        const pills = page.locator('[data-testid="prefix-pill"]');
+        await pills.first().waitFor({ timeout: 5_000 });
+        expect(await pills.count()).toBe(1);
+        const pillText = await pills.first().textContent();
+        expect(pillText?.toLowerCase()).toContain("name");
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "[24.14] typing `blah:` (invalid, no value) shows red pill immediately",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(workflowViewUrl);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .fill("blah:");
+
+        const invalidPill = page.locator('[data-testid="invalid-prefix"]');
+        await invalidPill.waitFor({ timeout: 5_000 });
+        expect(await invalidPill.isVisible()).toBe(true);
+        const pillText = await invalidPill.textContent();
+        expect(pillText?.toLowerCase()).toContain("blah");
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "[24.15] `name: pin:abc` shows two pills (name with empty value, pin with value)",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(workflowViewUrl);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .fill("name: pin:abc");
+
+        const indicator = page.locator('[data-testid="prefix-indicator"]');
+        await indicator.waitFor({ timeout: 5_000 });
+        expect(await indicator.isVisible()).toBe(true);
+
+        const pills = page.locator('[data-testid="prefix-pill"]');
+        await pills.nth(1).waitFor({ timeout: 5_000 });
+        expect(await pills.count()).toBe(2);
+
+        const texts = await pills.allTextContents();
+        expect(texts.some((t) => t.toLowerCase().includes("name"))).toBe(true);
+        expect(texts.some((t) => t.toLowerCase().includes("pin"))).toBe(true);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "[24.16] clicking × on value-less prefix pill `name:` removes it from input",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(workflowViewUrl);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .fill("name: pin:abc");
+
+        const indicator = page.locator('[data-testid="prefix-indicator"]');
+        await indicator.waitFor({ timeout: 5_000 });
+
+        const pills = page.locator('[data-testid="prefix-pill"]');
+        await pills.nth(1).waitFor({ timeout: 5_000 });
+        expect(await pills.count()).toBe(2);
+
+        // Click × on the "name" pill (first pill)
+        await pills.first().locator("button").click();
+
+        await page.waitForFunction(
+          () =>
+            document.querySelectorAll('[data-testid="prefix-pill"]').length ===
+            1,
+          { timeout: 5_000 },
+        );
+        expect(await pills.count()).toBe(1);
+        const remainingText = await pills.first().textContent();
+        expect(remainingText?.toLowerCase()).toContain("pin");
+
+        const inputValue = await page
+          .locator('[data-testid="command-palette-input"]')
+          .inputValue();
+        expect(inputValue).toBe("pin:abc");
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
 });
 
 // ── [25] Command Palette — Help Panel ────────────────────────────────────────

@@ -26,7 +26,11 @@ interface ParsedQuery {
 
 type ValidPrefixKey = "name" | "uri" | "pin" | "path";
 const VALID_PREFIXES = new Set<ValidPrefixKey>(["name", "uri", "pin", "path"]);
-const TOKEN_RE = /(\w+):"([^"]*)"?|(\w+):(\S+)|"([^"]*)"|(\S+)/g;
+// \S* (not \S+) in the unquoted-value alternative allows "name:" (colon with no
+// following characters) to match with an empty-string value, so the prefix pill
+// appears as soon as the user types the colon rather than waiting for the first
+// value character.
+const TOKEN_RE = /(\w+):"([^"]*)"?|(\w+):(\S*)|"([^"]*)"|(\S+)/g;
 
 /**
  * Parses a raw search string into structured per-field parameters.
@@ -287,28 +291,43 @@ export default function CommandPalette({ open, onClose, workflowId }: Props) {
   // Rebuilds the raw query string from the remaining parsed fields, omitting
   // the removed field. Values that contain spaces are re-quoted so the
   // regenerated string round-trips through parseSearchQuery correctly.
+  // Empty-string values (e.g. "name:" with no value yet) are serialized as
+  // "name:" rather than omitted or quoted, so the round-trip is lossless.
   // General bare terms (parsed.q) are appended last without quotes.
+  // Uses !== null instead of truthy checks so empty-string values are kept.
   function handleRemovePrefix(field: string) {
     const parts: string[] = [];
-    if (parsed.name && field !== "name")
+    if (parsed.name !== null && field !== "name")
       parts.push(
-        parsed.name.includes(" ")
-          ? `name:"${parsed.name}"`
-          : `name:${parsed.name}`,
+        parsed.name === ""
+          ? "name:"
+          : parsed.name.includes(" ")
+            ? `name:"${parsed.name}"`
+            : `name:${parsed.name}`,
       );
-    if (parsed.uri && field !== "uri")
+    if (parsed.uri !== null && field !== "uri")
       parts.push(
-        parsed.uri.includes(" ") ? `uri:"${parsed.uri}"` : `uri:${parsed.uri}`,
+        parsed.uri === ""
+          ? "uri:"
+          : parsed.uri.includes(" ")
+            ? `uri:"${parsed.uri}"`
+            : `uri:${parsed.uri}`,
       );
-    if (parsed.pin && field !== "pin")
+    if (parsed.pin !== null && field !== "pin")
       parts.push(
-        parsed.pin.includes(" ") ? `pin:"${parsed.pin}"` : `pin:${parsed.pin}`,
+        parsed.pin === ""
+          ? "pin:"
+          : parsed.pin.includes(" ")
+            ? `pin:"${parsed.pin}"`
+            : `pin:${parsed.pin}`,
       );
-    if (parsed.path && field !== "path")
+    if (parsed.path !== null && field !== "path")
       parts.push(
-        parsed.path.includes(" ")
-          ? `path:"${parsed.path}"`
-          : `path:${parsed.path}`,
+        parsed.path === ""
+          ? "path:"
+          : parsed.path.includes(" ")
+            ? `path:"${parsed.path}"`
+            : `path:${parsed.path}`,
       );
     if (parsed.q) parts.push(parsed.q);
     setQuery(parts.join(" "));
@@ -364,19 +383,29 @@ export default function CommandPalette({ open, onClose, workflowId }: Props) {
             active field filter or an unrecognised prefix in their query, AND
             the help panel is not currently open (the two panels would compete
             for the same space and the help text is more important to surface
-            while it is visible). */}
-        {(parsed.name ||
-          parsed.uri ||
-          parsed.pin ||
-          parsed.path ||
+            while it is visible).
+            Use !== null rather than truthy checks so that an empty-string value
+            (e.g. "name:" with no value yet) still triggers the pill. */}
+        {(parsed.name !== null ||
+          parsed.uri !== null ||
+          parsed.pin !== null ||
+          parsed.path !== null ||
           parsed.invalidPrefixes.length > 0) &&
           !showHelp && (
             <PalettePrefixIndicator
               filters={[
-                ...(parsed.name ? [{ field: "name", value: parsed.name }] : []),
-                ...(parsed.uri ? [{ field: "uri", value: parsed.uri }] : []),
-                ...(parsed.pin ? [{ field: "pin", value: parsed.pin }] : []),
-                ...(parsed.path ? [{ field: "path", value: parsed.path }] : []),
+                ...(parsed.name !== null
+                  ? [{ field: "name", value: parsed.name }]
+                  : []),
+                ...(parsed.uri !== null
+                  ? [{ field: "uri", value: parsed.uri }]
+                  : []),
+                ...(parsed.pin !== null
+                  ? [{ field: "pin", value: parsed.pin }]
+                  : []),
+                ...(parsed.path !== null
+                  ? [{ field: "path", value: parsed.path }]
+                  : []),
               ]}
               invalidPrefixes={parsed.invalidPrefixes}
               onRemove={handleRemovePrefix}
