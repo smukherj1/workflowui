@@ -1,27 +1,16 @@
-import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import type { WorkflowDetail } from "../lib/types";
 import StatusBadge from "./StatusBadge";
 import { formatRelative } from "../lib/format";
 import CommandPalette from "./CommandPalette";
+import { useCommandPalette } from "../hooks/useCommandPalette";
 
 interface Props {
   workflow: WorkflowDetail;
 }
 
 export default function WorkflowHeader({ workflow }: Props) {
-  const [paletteOpen, setPaletteOpen] = useState(false);
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        e.preventDefault();
-        setPaletteOpen((v) => !v);
-      }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  const { paletteOpen, openPalette, closePalette } = useCommandPalette();
 
   return (
     <>
@@ -56,7 +45,7 @@ export default function WorkflowHeader({ workflow }: Props) {
         {/* Search trigger */}
         <button
           data-testid="search-trigger"
-          onClick={() => setPaletteOpen(true)}
+          onClick={openPalette}
           style={{
             marginLeft: "auto",
             display: "flex",
@@ -92,7 +81,7 @@ export default function WorkflowHeader({ workflow }: Props) {
       </div>
       <CommandPalette
         open={paletteOpen}
-        onClose={() => setPaletteOpen(false)}
+        onClose={closePalette}
         workflowId={workflow.id}
       />
     </>

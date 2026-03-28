@@ -2,7 +2,11 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { search } from "../lib/api";
 import type { SearchResult } from "../lib/types";
-import StatusBadge from "./StatusBadge";
+import PaletteSearchInput from "./PaletteSearchInput";
+import PalettePrefixIndicator from "./PalettePrefixIndicator";
+import PaletteHelpPanel from "./PaletteHelpPanel";
+import PaletteResultsList from "./PaletteResultsList";
+import PaletteFooter from "./PaletteFooter";
 
 interface Props {
   open: boolean;
@@ -40,21 +44,58 @@ function parseSearchQuery(raw: string): ParsedQuery {
 }
 
 export default function CommandPalette({ open, onClose, workflowId }: Props) {
+  // Raw text in the search input. Drives prefix parsing and the debounced API
+  // call. Reset to "" when the palette opens.
   const [query, setQuery] = useState("");
+
+  // Current list of search results from the API. Cleared when the palette
+  // opens or when the query becomes empty.
   const [results, setResults] = useState<SearchResult[]>([]);
+
+  // Index of the keyboard-highlighted result. Reset to 0 on new results or
+  // when the palette opens. Updated by ArrowUp/ArrowDown keys and mouse hover.
   const [selectedIndex, setSelectedIndex] = useState(0);
+
+  // Whether an API request is in flight. Shown as a … indicator next to the input.
   const [loading, setLoading] = useState(false);
+
+  // Whether the help panel is displayed instead of the results list. Toggled
+  // by the ? button. Cleared when the palette opens or the user types.
   const [showHelp, setShowHelp] = useState(false);
+
+  // Used to programmatically focus the input 50ms after the palette opens
+  // (delay allows the DOM to mount before calling .focus()).
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Holds the current debounce timer ID so the previous timer can be cleared
+  // when the query changes before 400ms elapses. Prevents stale API responses
+  // from overwriting fresher ones.
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // A ref mirror of the showHelp state. Needed because the global keydown
+  // Escape listener (registered in the open-effect) captures showHelp at
+  // registration time via closure. The ref lets the listener read the current
+  // value of showHelp without requiring the effect to re-register on every
+  // showHelp change (which would tear down and re-add the listener on each toggle).
   const showHelpRef = useRef(false);
+
   const navigate = useNavigate();
 
   showHelpRef.current = showHelp;
 
   const parsed = parseSearchQuery(query);
 
-  // Focus input and handle global Escape when opened
+  // Effect 1: Open/reset + global Escape handler (deps: [open, onClose])
+  //
+  // When open transitions to true:
+  //   - Resets query, results, selectedIndex, and showHelp to initial values
+  //   - Focuses the input after a 50ms delay
+  //   - Registers a global keydown listener for Escape:
+  //       - If showHelpRef.current is true: closes only the help panel
+  //       - Otherwise: calls onClose() to close the entire palette
+  //   - Returns a cleanup that removes the listener
+  //
+  // When open is false: does nothing (no listener registered).
   useEffect(() => {
     if (open) {
       setQuery("");
@@ -77,7 +118,16 @@ export default function CommandPalette({ open, onClose, workflowId }: Props) {
     }
   }, [open, onClose]);
 
-  // Debounced search
+  // Effect 2: Debounced search (deps: [query, open, workflowId])
+  //
+  // When open is true and query changes:
+  //   - Clears any pending debounce timer
+  //   - If the parsed term is empty: clears results immediately and returns
+  //   - Otherwise: starts a 400ms timer that calls the search API with the
+  //     parsed field, term, current scope (derived from workflowId), and workflowId
+  //   - On API success: sets results and resets selectedIndex to 0
+  //   - On API failure: clears results
+  //   - Sets loading true/false around the API call
   useEffect(() => {
     if (!open) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -116,6 +166,11 @@ export default function CommandPalette({ open, onClose, workflowId }: Props) {
     },
     [navigate, onClose],
   );
+
+  function handleQueryChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setQuery(e.target.value);
+    if (showHelp) setShowHelp(false);
+  }
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Escape") {
@@ -179,337 +234,37 @@ export default function CommandPalette({ open, onClose, workflowId }: Props) {
           overflow: "hidden",
         }}
       >
-        {/* Search input */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.5rem",
-            padding: "0.75rem 1rem",
-            borderBottom: "1px solid #334155",
-          }}
-        >
-          <span style={{ color: "#475569", fontSize: "1rem" }}>🔍</span>
-          <input
-            ref={inputRef}
-            data-testid="command-palette-input"
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              if (showHelp) setShowHelp(false);
-            }}
-            onKeyDown={handleKeyDown}
-            placeholder={placeholder}
-            style={{
-              flex: 1,
-              background: "transparent",
-              border: "none",
-              outline: "none",
-              color: "#f1f5f9",
-              fontSize: "1rem",
-            }}
-          />
-          {loading && (
-            <span style={{ color: "#475569", fontSize: "0.75rem" }}>…</span>
-          )}
-          <button
-            data-testid="search-help-button"
-            title="Search help — supported prefixes and syntax"
-            onClick={() => setShowHelp((v) => !v)}
-            style={{
-              background: showHelp ? "#334155" : "transparent",
-              border: "1px solid #334155",
-              borderRadius: 4,
-              color: "#94a3b8",
-              cursor: "pointer",
-              fontSize: "0.75rem",
-              fontWeight: 600,
-              lineHeight: 1,
-              padding: "0.2rem 0.45rem",
-            }}
-          >
-            ?
-          </button>
-        </div>
-
-        {/* Prefix indicator */}
+        <PaletteSearchInput
+          ref={inputRef}
+          query={query}
+          onChange={handleQueryChange}
+          onKeyDown={handleKeyDown}
+          loading={loading}
+          showHelp={showHelp}
+          onToggleHelp={() => setShowHelp((v) => !v)}
+          placeholder={placeholder}
+        />
         {parsed.field && !showHelp && (
-          <div
-            data-testid="prefix-indicator"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.75rem",
-              padding: "0.4rem 1rem",
-              borderBottom: "1px solid #334155",
-              background: "#162032",
-            }}
-          >
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "0.3rem",
-                background: "#1e3a5f",
-                border: "1px solid #2563eb",
-                borderRadius: 4,
-                color: "#93c5fd",
-                fontSize: "0.75rem",
-                padding: "0.15rem 0.4rem",
-              }}
-            >
-              Field: {parsed.field}
-              <button
-                onClick={() => setQuery(parsed.term)}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "#93c5fd",
-                  cursor: "pointer",
-                  fontSize: "0.75rem",
-                  lineHeight: 1,
-                  padding: 0,
-                }}
-              >
-                ×
-              </button>
-            </span>
-            <span style={{ color: "#475569", fontSize: "0.75rem" }}>
-              searching for &quot;{parsed.term}&quot;
-            </span>
-          </div>
+          <PalettePrefixIndicator
+            field={parsed.field}
+            term={parsed.term}
+            onDismiss={() => setQuery(parsed.term)}
+          />
         )}
-
-        {/* Help panel or results */}
         {showHelp ? (
-          <div
-            data-testid="search-help-panel"
-            style={{
-              padding: "1rem",
-              color: "#94a3b8",
-              fontSize: "0.8rem",
-              maxHeight: 360,
-              overflowY: "auto",
-            }}
-          >
-            <div
-              style={{
-                color: "#f1f5f9",
-                fontWeight: 600,
-                marginBottom: "0.5rem",
-              }}
-            >
-              Search Prefixes
-            </div>
-            <div
-              style={{
-                borderTop: "1px solid #334155",
-                paddingTop: "0.5rem",
-                marginBottom: "1rem",
-              }}
-            >
-              {(
-                [
-                  ["name:", "Search by name", "name:build"],
-                  ["uri:", "Search by URI", "uri:github://org"],
-                  ["pin:", "Search by pin/version", "pin:abc123"],
-                  ["path:", "Search by hierarchy path", "path:/ci/build"],
-                ] as [string, string, string][]
-              ).map(([prefix, desc, example]) => (
-                <div
-                  key={prefix}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "4rem 1fr auto",
-                    gap: "0.5rem",
-                    padding: "0.3rem 0",
-                  }}
-                >
-                  <span style={{ color: "#93c5fd", fontFamily: "monospace" }}>
-                    {prefix}
-                  </span>
-                  <span>{desc}</span>
-                  <span style={{ color: "#475569", fontFamily: "monospace" }}>
-                    {example}
-                  </span>
-                </div>
-              ))}
-            </div>
-            <div
-              style={{
-                color: "#f1f5f9",
-                fontWeight: 600,
-                marginBottom: "0.5rem",
-              }}
-            >
-              Escaping
-            </div>
-            <div
-              style={{
-                borderTop: "1px solid #334155",
-                paddingTop: "0.5rem",
-                marginBottom: "1rem",
-              }}
-            >
-              <p style={{ margin: "0.3rem 0" }}>
-                Wrap in double quotes to search literally:
-              </p>
-              <p
-                style={{
-                  margin: "0.3rem 0",
-                  fontFamily: "monospace",
-                  color: "#475569",
-                }}
-              >
-                &quot;name:foo&quot; searches for the text name:foo
-              </p>
-            </div>
-            <div
-              style={{
-                color: "#f1f5f9",
-                fontWeight: 600,
-                marginBottom: "0.5rem",
-              }}
-            >
-              Tips
-            </div>
-            <div
-              style={{ borderTop: "1px solid #334155", paddingTop: "0.5rem" }}
-            >
-              <p style={{ margin: "0.3rem 0" }}>
-                • No prefix searches name, URI, and pin together
-              </p>
-              <p style={{ margin: "0.3rem 0" }}>
-                • Within a workflow, search is scoped to its steps
-              </p>
-              <p style={{ margin: "0.3rem 0" }}>
-                • Press Esc to close, ↑↓ to navigate results
-              </p>
-            </div>
-          </div>
+          <PaletteHelpPanel />
         ) : (
-          <div style={{ maxHeight: 360, overflowY: "auto" }}>
-            {results.length === 0 && query.trim() && !loading && (
-              <div
-                style={{
-                  padding: "1.5rem 1rem",
-                  color: "#475569",
-                  fontSize: "0.875rem",
-                  textAlign: "center",
-                }}
-              >
-                No results for &quot;{query}&quot;
-              </div>
-            )}
-            {results.length === 0 && !query.trim() && (
-              <div
-                style={{
-                  padding: "1.5rem 1rem",
-                  color: "#475569",
-                  fontSize: "0.875rem",
-                  textAlign: "center",
-                }}
-              >
-                {workflowId
-                  ? "Type to search steps in this workflow"
-                  : "Type to search workflows and steps"}
-              </div>
-            )}
-            {results.map((result, i) => (
-              <div
-                key={
-                  result.type === "workflow" ? result.workflowId : result.uuid
-                }
-                data-testid="search-result"
-                onClick={() => navigateToResult(result)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.75rem",
-                  padding: "0.6rem 1rem",
-                  cursor: "pointer",
-                  background: i === selectedIndex ? "#0f172a" : "transparent",
-                  borderBottom: "1px solid #1e293b",
-                }}
-                onMouseEnter={() => setSelectedIndex(i)}
-              >
-                <StatusBadge status={result.status} size={10} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      color: "#f1f5f9",
-                      fontSize: "0.875rem",
-                      fontWeight: 500,
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {result.name}
-                  </div>
-                  <div
-                    style={{
-                      color: "#64748b",
-                      fontSize: "0.75rem",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {result.type === "step"
-                      ? `${result.workflowName} • ${result.hierarchyPath}`
-                      : (result.uri ?? result.pin ?? "workflow")}
-                  </div>
-                </div>
-                <span
-                  style={{
-                    fontSize: "0.7rem",
-                    color: "#475569",
-                    flexShrink: 0,
-                    background: "#0f172a",
-                    padding: "0.1rem 0.4rem",
-                    borderRadius: 4,
-                  }}
-                >
-                  {result.type}
-                </span>
-              </div>
-            ))}
-          </div>
+          <PaletteResultsList
+            results={results}
+            query={query}
+            loading={loading}
+            selectedIndex={selectedIndex}
+            onSelect={navigateToResult}
+            onHover={setSelectedIndex}
+            workflowId={workflowId}
+          />
         )}
-
-        {/* Footer */}
-        <div
-          style={{
-            padding: "0.5rem 1rem",
-            borderTop: "1px solid #1e293b",
-            display: "flex",
-            gap: "1rem",
-            fontSize: "0.7rem",
-            color: "#475569",
-            alignItems: "center",
-          }}
-        >
-          <span>↑↓ navigate</span>
-          <span>↵ select</span>
-          <span>Esc close</span>
-          <span style={{ marginLeft: "auto" }}>
-            <button
-              data-testid="advanced-search-link"
-              onClick={handleAdvancedSearch}
-              style={{
-                background: "transparent",
-                border: "none",
-                color: "#64748b",
-                cursor: "pointer",
-                fontSize: "0.7rem",
-                padding: 0,
-              }}
-            >
-              Advanced Search →
-            </button>
-          </span>
-        </div>
+        <PaletteFooter onAdvancedSearch={handleAdvancedSearch} />
       </div>
     </div>
   );

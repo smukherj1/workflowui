@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams, useSearchParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getLogs, getWorkflow, getBreadcrumbs } from "../lib/api";
 import LogLineComponent from "../components/LogLine";
 import CommandPalette from "../components/CommandPalette";
 import Breadcrumbs from "../components/Breadcrumbs";
+import { useCommandPalette } from "../hooks/useCommandPalette";
 
 export default function LogsPage() {
   const { workflowId } = useParams<{ workflowId: string }>();
@@ -14,18 +15,7 @@ export default function LogsPage() {
   const [cursor, setCursor] = useState<string | undefined>(undefined);
   const [prevCursors, setPrevCursors] = useState<(string | undefined)[]>([]);
   const [filter, setFilter] = useState("");
-  const [paletteOpen, setPaletteOpen] = useState(false);
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        e.preventDefault();
-        setPaletteOpen((v) => !v);
-      }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  const { paletteOpen, openPalette, closePalette } = useCommandPalette();
 
   const { data: workflow } = useQuery({
     queryKey: ["workflow", workflowId],
@@ -127,7 +117,7 @@ export default function LogsPage() {
         {/* Search trigger */}
         <button
           data-testid="search-trigger"
-          onClick={() => setPaletteOpen(true)}
+          onClick={openPalette}
           style={{
             display: "flex",
             alignItems: "center",
@@ -298,7 +288,7 @@ export default function LogsPage() {
 
       <CommandPalette
         open={paletteOpen}
-        onClose={() => setPaletteOpen(false)}
+        onClose={closePalette}
         workflowId={workflowId}
       />
     </div>

@@ -1,22 +1,11 @@
-import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import UploadForm from "../components/UploadForm";
 import NavigateForm from "../components/NavigateForm";
 import CommandPalette from "../components/CommandPalette";
+import { useCommandPalette } from "../hooks/useCommandPalette";
 
 export default function UploadPage() {
-  const [paletteOpen, setPaletteOpen] = useState(false);
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        e.preventDefault();
-        setPaletteOpen((v) => !v);
-      }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  const { paletteOpen, openPalette, closePalette } = useCommandPalette();
 
   return (
     <div
@@ -43,7 +32,7 @@ export default function UploadPage() {
       {/* Search trigger */}
       <button
         data-testid="search-trigger"
-        onClick={() => setPaletteOpen(true)}
+        onClick={openPalette}
         style={{
           display: "flex",
           alignItems: "center",
@@ -90,10 +79,7 @@ export default function UploadPage() {
         <span style={{ color: "#93c5fd" }}>Advanced Search</span>
       </Link>
 
-      <CommandPalette
-        open={paletteOpen}
-        onClose={() => setPaletteOpen(false)}
-      />
+      <CommandPalette open={paletteOpen} onClose={closePalette} />
     </div>
   );
 }
