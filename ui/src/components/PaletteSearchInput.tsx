@@ -1,15 +1,36 @@
 import { forwardRef } from "react";
 
 interface Props {
+  /** Current raw text in the search input. Controlled by CommandPalette. */
   query: string;
+  /** Called on every keystroke. CommandPalette uses this to update its query
+   *  state and close the help panel if it was open. */
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  /** Forwarded to the <input> for keyboard navigation (ArrowUp/Down, Enter,
+   *  Escape) handled by CommandPalette. */
   onKeyDown: (e: React.KeyboardEvent) => void;
+  /** When true, shows a "…" spinner beside the input to indicate a search
+   *  request is in flight. */
   loading: boolean;
+  /** Whether the help panel is currently visible. Used to toggle the "?"
+   *  button's background so it appears active/pressed while help is open. */
   showHelp: boolean;
+  /** Called when the user clicks the "?" button to show or hide the help
+   *  panel. Toggles CommandPalette's showHelp state. */
   onToggleHelp: () => void;
+  /** Placeholder text for the input. Differs based on whether the palette is
+   *  scoped to a specific workflow ("Search steps...") or global
+   *  ("Search workflows and steps..."). */
   placeholder: string;
 }
 
+/**
+ * The top row of the command palette: a search icon, the text input, an
+ * optional loading indicator, and the "?" help-toggle button.
+ *
+ * The component is a forwardRef so CommandPalette can imperatively focus the
+ * input after the palette mounts (50 ms after open transitions to true).
+ */
 const PaletteSearchInput = forwardRef<HTMLInputElement, Props>(
   function PaletteSearchInput(
     {

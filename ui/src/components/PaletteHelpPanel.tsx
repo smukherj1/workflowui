@@ -1,3 +1,13 @@
+/**
+ * A reference panel that replaces the results list when the user clicks the
+ * "?" button. Documents the four supported search prefixes (name/uri/pin/path),
+ * the double-quote escaping syntax (to bypass prefix parsing and search
+ * literally), how to combine multiple prefix filters in a single query, and
+ * general tips. No props — the content is static.
+ *
+ * Dismissed by clicking "?" again or pressing Escape, both of which toggle
+ * CommandPalette's showHelp state. Typing in the input also closes the panel.
+ */
 export default function PaletteHelpPanel() {
   return (
     <div

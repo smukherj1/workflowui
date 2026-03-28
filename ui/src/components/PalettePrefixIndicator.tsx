@@ -4,8 +4,16 @@ interface ActiveFilter {
 }
 
 interface Props {
+  /** The set of recognised prefix filters currently active in the query (e.g.
+   *  `name:build`, `pin:abc`). Each entry becomes a colored pill. */
   filters: ActiveFilter[];
+  /** Prefix words that appeared before a colon in the query but are not one
+   *  of the four valid prefixes (name/uri/pin/path). Rendered as red warning
+   *  pills to let the user know the prefix was not understood and its value
+   *  is being treated as a bare search term instead. */
   invalidPrefixes: string[];
+  /** Called with the field name when the user clicks the × on a valid-prefix
+   *  pill. CommandPalette rebuilds the query string without that prefix. */
   onRemove: (field: string) => void;
 }
 
@@ -21,6 +29,16 @@ const FIELD_COLORS: Record<
 
 const DEFAULT_COLORS = { bg: "#1e3a5f", border: "#2563eb", text: "#93c5fd" };
 
+/**
+ * A thin bar displayed between the search input and the results list whenever
+ * at least one prefix filter (name/uri/pin/path) is active or an unrecognised
+ * prefix was typed. Each active filter is shown as a field-colored pill with
+ * a × remove button; each invalid prefix is shown as a red warning pill
+ * (no remove button — the user must edit the raw query to clear it).
+ *
+ * Not shown while the help panel is open (CommandPalette hides this component
+ * in that case so it doesn't compete for space with the help text).
+ */
 export default function PalettePrefixIndicator({
   filters,
   invalidPrefixes,

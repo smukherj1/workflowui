@@ -28,6 +28,24 @@ type ValidPrefixKey = "name" | "uri" | "pin" | "path";
 const VALID_PREFIXES = new Set<ValidPrefixKey>(["name", "uri", "pin", "path"]);
 const TOKEN_RE = /(\w+):"([^"]*)"?|(\w+):(\S+)|"([^"]*)"|(\S+)/g;
 
+/**
+ * Parses a raw search string into structured per-field parameters.
+ *
+ * Input format (any combination):
+ *   - `prefix:value` or `prefix:"value with spaces"` — assigns value to a
+ *     recognised prefix field (name/uri/pin/path).
+ *   - Unrecognised `word:value` — the prefix name is added to `invalidPrefixes`
+ *     and the full token is treated as a bare term (passed through as-is).
+ *   - `"quoted phrase"` — treated as a single bare term (quotes stripped).
+ *   - Bare words — concatenated into the general-purpose `q` term.
+ *   - Entire input wrapped in double quotes (e.g. `"name:foo"`) — bypasses all
+ *     prefix parsing; the literal inner text is returned as `q` only.
+ *
+ * Returns a `ParsedQuery` where each recognised prefix field holds its parsed
+ * value (or null if absent), `q` holds all bare/unrecognised text joined by
+ * spaces (or null if none), and `invalidPrefixes` lists any unrecognised prefix
+ * words found.
+ */
 function parseSearchQuery(raw: string): ParsedQuery {
   const trimmed = raw.trim();
 
@@ -200,6 +218,10 @@ export default function CommandPalette({ open, onClose, workflowId }: Props) {
     }, 400);
   }, [query, open, workflowId]);
 
+  // Closes the palette and navigates to the selected result. Workflow results
+  // go to the workflow root; step results go to the step's sub-step view.
+  // Wrapped in useCallback so the stable reference can be passed to
+  // PaletteResultsList without triggering unnecessary re-renders.
   const navigateToResult = useCallback(
     (result: SearchResult) => {
       onClose();
@@ -212,11 +234,20 @@ export default function CommandPalette({ open, onClose, workflowId }: Props) {
     [navigate, onClose],
   );
 
+  // Called on every keystroke in the search input. Syncs raw query state and
+  // dismisses the help panel if it was open so the user immediately sees
+  // results as they type.
   function handleQueryChange(e: React.ChangeEvent<HTMLInputElement>) {
     setQuery(e.target.value);
     if (showHelp) setShowHelp(false);
   }
 
+  // Keyboard handler attached to the search input. Handles:
+  //   Escape    — closes help panel first (if open), otherwise closes palette.
+  //   ArrowDown — moves selection down one row, clamped at the last result.
+  //   ArrowUp   — moves selection up one row, clamped at 0.
+  //   Enter     — navigates to the currently highlighted result (if any).
+  // Arrow keys call preventDefault to stop the browser from scrolling the page.
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Escape") {
       if (showHelp) {
@@ -235,6 +266,10 @@ export default function CommandPalette({ open, onClose, workflowId }: Props) {
     }
   }
 
+  // Called when the user clicks "Advanced Search →" in the palette footer.
+  // Closes the palette and navigates to /search, pre-populating every active
+  // per-field param (q, name, uri, pin, path) and the workflowId scope so the
+  // advanced search page starts with the same filters already applied.
   function handleAdvancedSearch() {
     onClose();
     const params = new URLSearchParams();
@@ -248,6 +283,11 @@ export default function CommandPalette({ open, onClose, workflowId }: Props) {
     navigate(`/search${qs ? `?${qs}` : ""}`);
   }
 
+  // Called when the user clicks × on a prefix pill in PalettePrefixIndicator.
+  // Rebuilds the raw query string from the remaining parsed fields, omitting
+  // the removed field. Values that contain spaces are re-quoted so the
+  // regenerated string round-trips through parseSearchQuery correctly.
+  // General bare terms (parsed.q) are appended last without quotes.
   function handleRemovePrefix(field: string) {
     const parts: string[] = [];
     if (parsed.name && field !== "name")
@@ -308,6 +348,8 @@ export default function CommandPalette({ open, onClose, workflowId }: Props) {
           overflow: "hidden",
         }}
       >
+        {/* Always visible: the search input row with the loading indicator and
+            the "?" help-toggle button. */}
         <PaletteSearchInput
           ref={inputRef}
           query={query}
@@ -318,6 +360,11 @@ export default function CommandPalette({ open, onClose, workflowId }: Props) {
           onToggleHelp={() => setShowHelp((v) => !v)}
           placeholder={placeholder}
         />
+        {/* Show the prefix indicator bar only when the user has at least one
+            active field filter or an unrecognised prefix in their query, AND
+            the help panel is not currently open (the two panels would compete
+            for the same space and the help text is more important to surface
+            while it is visible). */}
         {(parsed.name ||
           parsed.uri ||
           parsed.pin ||
@@ -335,6 +382,9 @@ export default function CommandPalette({ open, onClose, workflowId }: Props) {
               onRemove={handleRemovePrefix}
             />
           )}
+        {/* The main body area is either the help panel or the results list —
+            never both at once. The help panel takes over the entire body when
+            the user toggles it; the results list is shown otherwise. */}
         {showHelp ? (
           <PaletteHelpPanel />
         ) : (
