@@ -1,0 +1,23 @@
+{
+  "workflow": {
+    "metadata": { "name": "" },
+    "steps": [
+      {
+        "id": "",
+        "metadata": { "name": "" },
+        "status": "done",
+        "dependsOn": [],
+        "logs": null,
+        "steps": []
+      },
+      {
+        "id": "step-2",
+        "metadata": {},
+        "status": 123,
+        "dependsOn": "not-an-array",
+        "logs": null,
+        "steps": []
+      }
+    ]
+  }
+}

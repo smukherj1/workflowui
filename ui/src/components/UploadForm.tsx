@@ -7,14 +7,17 @@ export default function UploadForm() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
+  const [errorSummary, setErrorSummary] = useState<string | undefined>();
   const [dragOver, setDragOver] = useState(false);
 
   async function handleFile(file: File) {
     if (!file.name.endsWith(".json")) {
       setErrors(["Only .json files are accepted."]);
+      setErrorSummary(undefined);
       return;
     }
     setErrors([]);
+    setErrorSummary(undefined);
     setLoading(true);
     try {
       const result = await uploadWorkflow(file);
@@ -28,8 +31,10 @@ export default function UploadForm() {
         setErrors(
           err.details?.length ? err.details : [err.message || "Upload failed"],
         );
+        setErrorSummary(err.summary);
       } else {
         setErrors(["A network error occurred. Please try again."]);
+        setErrorSummary(undefined);
       }
     } finally {
       setLoading(false);
@@ -122,11 +127,14 @@ export default function UploadForm() {
           }}
         >
           <div style={{ fontWeight: 600, marginBottom: "0.5rem" }}>
-            Upload error
+            {errorSummary ?? "Upload error"}
           </div>
           <ul style={{ margin: 0, paddingLeft: "1.5rem" }}>
             {errors.map((e, i) => (
-              <li key={i} style={{ fontSize: "0.875rem" }}>
+              <li
+                key={i}
+                style={{ fontSize: "0.875rem", fontFamily: "monospace" }}
+              >
                 {e}
               </li>
             ))}

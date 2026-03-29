@@ -1,0 +1,23 @@
+{
+  "workflow": {
+    "metadata": { "name": "structural-multi-error" },
+    "steps": [
+      {
+        "id": "a",
+        "metadata": { "name": "A" },
+        "status": "passed",
+        "dependsOn": ["b"],
+        "logs": null,
+        "steps": []
+      },
+      {
+        "id": "b",
+        "metadata": { "name": "B" },
+        "status": "passed",
+        "dependsOn": ["a"],
+        "logs": null,
+        "steps": []
+      }
+    ]
+  }
+}

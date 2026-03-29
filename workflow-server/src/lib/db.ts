@@ -18,7 +18,10 @@ function poolConfig() {
     password: process.env.PGPASSWORD ?? "workflowui",
   };
   console.log(
-    `Connecting to Postgres DB at host=${c.host} port=${c.port} database=${c.database} user=${c.user}, password=${c.password ? "****" : "(empty)"}`,
+    "Connecting to Postgres DB at " +
+      `host=${c.host} port=${c.port} ` +
+      `database=${c.database} user=${c.user} ` +
+      `password=${c.password ? "*".repeat(c.password.length) : "(empty)"}`,
   );
   return c;
 }

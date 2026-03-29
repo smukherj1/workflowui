@@ -1,7 +1,11 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { workflowSchema, validateStructureAndDAG } from "../lib/validation.js";
+import {
+  workflowSchema,
+  validateStructureAndDAG,
+  formatSchemaErrors,
+} from "../lib/validation.js";
 import {
   insertWorkflow,
   getWorkflow,
@@ -13,24 +17,61 @@ const router = new Hono();
 
 // POST /api/workflows
 router.post("/", async (c) => {
+  let rawText: string;
+  try {
+    rawText = await c.req.text();
+  } catch {
+    return c.json(
+      {
+        error: "INVALID_JSON",
+        summary: "The uploaded file is not valid JSON",
+        details: ["Failed to read request body"],
+        totalErrors: 1,
+      },
+      400,
+    );
+  }
+
   let body: unknown;
   try {
-    body = await c.req.json();
-  } catch {
-    return c.json({ error: "Invalid JSON" }, 400);
+    body = JSON.parse(rawText);
+  } catch (err) {
+    return c.json(
+      {
+        error: "INVALID_JSON",
+        summary: "The uploaded file is not valid JSON",
+        details: [`JSON syntax error: ${(err as Error).message}`],
+        totalErrors: 1,
+      },
+      400,
+    );
   }
 
   const parsed = workflowSchema.safeParse(body);
   if (!parsed.success) {
+    const formatted = formatSchemaErrors(parsed.error);
     return c.json(
-      { error: parsed.error.message, details: parsed.error.issues },
+      {
+        error: "SCHEMA_INVALID",
+        summary: formatted.summary,
+        details: formatted.items,
+        totalErrors: formatted.totalErrors,
+      },
       400,
     );
   }
 
   const structErr = validateStructureAndDAG(parsed.data);
   if (structErr) {
-    return c.json({ error: "STRUCTURAL_INVALID", details: structErr }, 400);
+    return c.json(
+      {
+        error: "STRUCTURAL_INVALID",
+        summary: structErr.summary,
+        details: structErr.items,
+        totalErrors: structErr.totalErrors,
+      },
+      400,
+    );
   }
 
   try {

@@ -668,7 +668,6 @@ describe("[13] Upload Workflow With Cycles Shows Error", () => {
         expect(navigated, "should not navigate on cycle error").toBe(false);
 
         const pageText = await page.textContent("body");
-        expect(pageText?.toLowerCase()).toContain("upload");
         expect(pageText?.toLowerCase()).toContain("error");
       } finally {
         await ctx.close();
@@ -703,7 +702,6 @@ describe("[14] Upload Invalid JSON Shows Error", () => {
         );
 
         const pageText = await page.textContent("body");
-        expect(pageText?.toLowerCase()).toContain("upload");
         expect(pageText?.toLowerCase()).toContain("error");
       } finally {
         await ctx.close();
@@ -738,8 +736,110 @@ describe("[15] Upload Invalid Workflow Schema Shows Error", () => {
         expect(navigated, "should not navigate on schema error").toBe(false);
 
         const pageText = await page.textContent("body");
-        expect(pageText?.toLowerCase()).toContain("upload");
         expect(pageText?.toLowerCase()).toContain("error");
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+});
+
+// ── [13.1] Upload Cycle Error Shows Summary and Details ──────────────────────
+
+describe("[13.1] Upload Workflow With Cycles Shows Structural Error Details", () => {
+  test(
+    "shows structural error summary and cycle detail",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(UI_BASE);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        const fileInput = page.locator('input[type="file"]');
+        await fileInput.setInputFiles(
+          path.join(DATA_DIR, "invalid-cycle.json"),
+        );
+
+        // Wait for the error box to appear
+        await page.waitForSelector("ul li", { timeout: 10_000 });
+
+        const pageText = await page.textContent("body");
+        expect(pageText?.toLowerCase()).toContain("structural error");
+
+        // At least one bullet should mention "cycle"
+        const bullets = page.locator("ul li");
+        const count = await bullets.count();
+        expect(count).toBeGreaterThanOrEqual(1);
+        const firstBullet = await bullets.first().textContent();
+        expect(firstBullet?.toLowerCase()).toContain("cycle");
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+});
+
+// ── [15.1] Upload Schema With Multiple Errors Shows Truncated List ────────────
+
+describe("[15.1] Upload Schema With Multiple Errors Shows Truncated List", () => {
+  test(
+    "shows at most 3 error details and a 'more' indicator",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(UI_BASE);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        const fileInput = page.locator('input[type="file"]');
+        await fileInput.setInputFiles(
+          path.join(DATA_DIR, "invalid-schema-multiple.json"),
+        );
+
+        await page.waitForSelector("ul li", { timeout: 10_000 });
+
+        // Should show at most 3 bullet items
+        const bullets = page.locator("ul li");
+        const count = await bullets.count();
+        expect(count).toBeLessThanOrEqual(3);
+        expect(count).toBeGreaterThanOrEqual(1);
+
+        // Summary should mention "more" since total > 3
+        const pageText = await page.textContent("body");
+        expect(pageText?.toLowerCase()).toContain("more");
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+});
+
+// ── [15.2] Upload Invalid Schema Shows Field Path in Details ──────────────────
+
+describe("[15.2] Upload Invalid Workflow Schema Shows Field Path", () => {
+  test(
+    "shows field path in error details",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(UI_BASE);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        const fileInput = page.locator('input[type="file"]');
+        await fileInput.setInputFiles(
+          path.join(DATA_DIR, "invalid-schema.json"),
+        );
+
+        await page.waitForSelector("ul li", { timeout: 10_000 });
+
+        const bullets = page.locator("ul li");
+        const firstBullet = await bullets.first().textContent();
+        expect(firstBullet).toContain("workflow");
       } finally {
         await ctx.close();
       }

@@ -42,6 +42,58 @@ export const workflowSchema = z.object({
   }),
 });
 
+// ── Formatted Validation Errors ──────────────────────────────────────────────
+
+export interface FormattedValidationError {
+  /** Human-readable summary, e.g. "3 validation errors (showing first 3)" */
+  summary: string;
+  /** Individual error strings with field paths */
+  items: string[];
+  /** Total number of errors (may exceed items.length) */
+  totalErrors: number;
+}
+
+const MAX_DISPLAYED_ERRORS = 3;
+
+export function formatSchemaErrors(
+  zodError: z.ZodError,
+): FormattedValidationError {
+  const issues = zodError.issues;
+  const total = issues.length;
+  const shown = issues.slice(0, MAX_DISPLAYED_ERRORS);
+
+  const items = shown.map((issue) => {
+    const fieldPath = issue.path
+      .map((seg, i) =>
+        typeof seg === "number"
+          ? `[${seg}]`
+          : (i > 0 ? "." : "") + String(seg),
+      )
+      .join("");
+
+    let msg = issue.message;
+
+    if (issue.code === "invalid_value") {
+      const expected = (issue as z.core.$ZodIssueInvalidValue).values
+        ?.map(String)
+        .join(" | ");
+      if (expected) msg += `. Expected: ${expected}`;
+    }
+
+    return `${fieldPath || "(root)"}: ${msg}`;
+  });
+
+  const hiddenCount = total - shown.length;
+  const summary =
+    total === 1
+      ? "1 validation error"
+      : hiddenCount > 0
+        ? `${total} validation errors (showing first ${MAX_DISPLAYED_ERRORS}; ${hiddenCount} more)`
+        : `${total} validation errors`;
+
+  return { summary, items, totalErrors: total };
+}
+
 // ── Structural + DAG validation ──────────────────────────────────────────────
 
 const MAX_STEPS_PER_LEVEL = 10_000;
@@ -49,6 +101,7 @@ const MAX_DEPS_PER_STEP = 100;
 const MAX_LOG_BYTES_PER_LEAF = 10 * 1024 * 1024;
 const MAX_TOTAL_LOG_BYTES = 50 * 1024 * 1024;
 const MAX_DEPTH = 10;
+const MAX_STRUCTURAL_ERRORS = 20;
 
 interface ValidationContext {
   totalLogBytes: number;
@@ -91,40 +144,71 @@ function validateStepsRecursive(
   steps: StepInput[],
   depth: number,
   ctx: ValidationContext,
-): string | null {
-  if (depth > MAX_DEPTH) return `Hierarchy depth exceeds ${MAX_DEPTH}`;
-  if (steps.length > MAX_STEPS_PER_LEVEL)
-    return `Steps per level exceeds ${MAX_STEPS_PER_LEVEL}`;
+  errors: string[],
+): void {
+  if (errors.length >= MAX_STRUCTURAL_ERRORS) return;
+
+  if (depth > MAX_DEPTH) {
+    errors.push(`Hierarchy depth exceeds ${MAX_DEPTH}`);
+    return;
+  }
+  if (steps.length > MAX_STEPS_PER_LEVEL) {
+    errors.push(`Steps per level exceeds ${MAX_STEPS_PER_LEVEL}`);
+    return;
+  }
 
   const cycleError = detectCycle(steps);
-  if (cycleError) return cycleError;
+  if (cycleError) errors.push(`${cycleError} at depth ${depth}`);
 
   for (const step of steps) {
+    if (errors.length >= MAX_STRUCTURAL_ERRORS) return;
     ctx.totalSteps++;
-    if (step.dependsOn.length > MAX_DEPS_PER_STEP)
-      return `Step "${step.id}" exceeds ${MAX_DEPS_PER_STEP} dependencies`;
+    if (step.dependsOn.length > MAX_DEPS_PER_STEP) {
+      errors.push(
+        `Step "${step.id}" exceeds ${MAX_DEPS_PER_STEP} dependencies`,
+      );
+    }
 
     if (step.logs !== null) {
       const bytes = step.logs.reduce(
         (sum, entry) => sum + Buffer.byteLength(entry.content, "utf8"),
         0,
       );
-      if (bytes > MAX_LOG_BYTES_PER_LEAF)
-        return `Step "${step.id}" log exceeds 10MB`;
+      if (bytes > MAX_LOG_BYTES_PER_LEAF) {
+        errors.push(`Step "${step.id}" log exceeds 10MB`);
+      }
       ctx.totalLogBytes += bytes;
-      if (ctx.totalLogBytes > MAX_TOTAL_LOG_BYTES)
-        return "Total logs exceed 50MB";
+      if (ctx.totalLogBytes > MAX_TOTAL_LOG_BYTES) {
+        errors.push("Total logs exceed 50MB");
+        return;
+      }
     }
 
     if (step.steps.length > 0) {
-      const err = validateStepsRecursive(step.steps, depth + 1, ctx);
-      if (err) return err;
+      validateStepsRecursive(step.steps, depth + 1, ctx, errors);
     }
   }
-  return null;
 }
 
-export function validateStructureAndDAG(input: WorkflowInput): string | null {
+export function validateStructureAndDAG(
+  input: WorkflowInput,
+): FormattedValidationError | null {
   const ctx: ValidationContext = { totalLogBytes: 0, totalSteps: 0 };
-  return validateStepsRecursive(input.workflow.steps, 1, ctx);
+  const errors: string[] = [];
+  validateStepsRecursive(input.workflow.steps, 1, ctx, errors);
+
+  if (errors.length === 0) return null;
+
+  const shown = errors.slice(0, MAX_DISPLAYED_ERRORS);
+  const hidden = errors.length - shown.length;
+  return {
+    summary:
+      errors.length === 1
+        ? "1 structural error"
+        : hidden > 0
+          ? `${errors.length} structural errors (showing first ${MAX_DISPLAYED_ERRORS}; ${hidden} more)`
+          : `${errors.length} structural errors`,
+    items: shown,
+    totalErrors: errors.length,
+  };
 }

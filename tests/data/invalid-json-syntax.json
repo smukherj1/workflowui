@@ -1,0 +1,12 @@
+{
+  "workflow": {
+    "metadata": { "name": "test" },
+    "steps": [
+      {
+        "id": "step-1",
+        "status": "passed"
+        "metadata": { "name": "Step 1" }
+      }
+    ]
+  }
+}

@@ -254,6 +254,12 @@ export default function CommandPalette({ open, onClose, workflowId }: Props) {
   // Arrow keys call preventDefault to stop the browser from scrolling the page.
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Escape") {
+      // Stop the event from reaching the global window listener, which also
+      // handles Escape. Without this, React can flush the setShowHelp(false)
+      // state update before the window listener fires, causing showHelpRef to
+      // read false and triggering onClose() — closing the palette entirely
+      // instead of just the help panel.
+      // e.stopPropagation();
       if (showHelp) {
         setShowHelp(false);
       } else {

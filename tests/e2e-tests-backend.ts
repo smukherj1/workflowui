@@ -66,26 +66,48 @@ describe("GET /health", () => {
 // ── Invalid uploads ────────────────────────────────────────────────────────
 
 describe("POST /api/workflows — invalid payloads", () => {
-  test("invalid-json.json: returns 400", async () => {
-    const { status } = await post(
+  test("invalid-json.json: returns INVALID_JSON with summary", async () => {
+    const { status, json } = await post(
       "/api/workflows",
       readFixture("invalid-json.json"),
     );
     expect(status).toBe(400);
+    const body = json as Record<string, unknown>;
+    expect(body.error).toBe("INVALID_JSON");
+    expect(body.summary).toBeString();
+    expect(body.details).toBeArray();
+    expect((body.details as string[]).length).toBeGreaterThanOrEqual(1);
   });
 
-  test("invalid-schema.json: returns 400", async () => {
+  test("invalid-schema.json: returns SCHEMA_INVALID with field paths", async () => {
     const { status, json } = await post(
       "/api/workflows",
       readFixture("invalid-schema.json"),
     );
     expect(status).toBe(400);
-    // Missing required workflow.metadata.name → schema validation error
     const body = json as Record<string, unknown>;
-    expect(body.error).toBeString();
+    expect(body.error).toBe("SCHEMA_INVALID");
+    expect(body.summary).toBeString();
+    expect(body.details).toBeArray();
+    const details = body.details as string[];
+    expect(details[0]).toContain("workflow");
   });
 
-  test("invalid-cycle.json: returns 400 STRUCTURAL_INVALID", async () => {
+  test("invalid-schema-multiple.json: caps at 3 details and reports total", async () => {
+    const { status, json } = await post(
+      "/api/workflows",
+      readFixture("invalid-schema-multiple.json"),
+    );
+    expect(status).toBe(400);
+    const body = json as Record<string, unknown>;
+    expect(body.error).toBe("SCHEMA_INVALID");
+    expect((body.details as string[]).length).toBeLessThanOrEqual(3);
+    expect(body.totalErrors).toBeNumber();
+    expect(body.totalErrors as number).toBeGreaterThan(3);
+    expect((body.summary as string).toLowerCase()).toContain("more");
+  });
+
+  test("invalid-cycle.json: returns STRUCTURAL_INVALID with summary and details", async () => {
     const { status, json } = await post(
       "/api/workflows",
       readFixture("invalid-cycle.json"),
@@ -93,6 +115,9 @@ describe("POST /api/workflows — invalid payloads", () => {
     const body = json as Record<string, unknown>;
     expect(status).toBe(400);
     expect(body.error).toBe("STRUCTURAL_INVALID");
+    expect(body.summary).toBeString();
+    expect(body.details).toBeArray();
+    expect((body.details as string[]).length).toBeGreaterThanOrEqual(1);
   });
 });
 

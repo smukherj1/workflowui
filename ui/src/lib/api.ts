@@ -15,28 +15,39 @@ export class ApiError extends Error {
     message: string,
     public status: number,
     public details?: string[],
+    public summary?: string,
+    public totalErrors?: number,
   ) {
     super(message);
   }
 }
 
-function extractDetails(body: Record<string, unknown>): string[] | undefined {
+function extractApiError(body: Record<string, unknown>): {
+  details?: string[];
+  summary?: string;
+  totalErrors?: number;
+} {
+  const result: { details?: string[]; summary?: string; totalErrors?: number } =
+    {};
+
   if (Array.isArray(body.details)) {
-    return body.details.map((item) => {
+    result.details = body.details.map((item) => {
       if (typeof item === "string") return item;
-      if (item && typeof item === "object" && "message" in item) {
+      if (item && typeof item === "object" && "message" in item)
         return String((item as Record<string, unknown>).message);
-      }
       return String(item);
     });
+  } else if (body.details) {
+    result.details = [String(body.details)];
+  } else if (body.message) {
+    result.details = [String(body.message)];
   }
-  if (body.details) {
-    return [String(body.details)];
-  }
-  if (body.message) {
-    return [String(body.message)];
-  }
-  return undefined;
+
+  if (typeof body.summary === "string") result.summary = body.summary;
+  if (typeof body.totalErrors === "number")
+    result.totalErrors = body.totalErrors;
+
+  return result;
 }
 
 export async function uploadWorkflow(
@@ -52,10 +63,13 @@ export async function uploadWorkflow(
   console.log(`Upload file ${file.name} completed with status ${res.status}.`);
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: "Upload failed" }));
+    const extracted = extractApiError(body);
     throw new ApiError(
       body.error || "Upload failed",
       res.status,
-      extractDetails(body),
+      extracted.details,
+      extracted.summary,
+      extracted.totalErrors,
     );
   }
   return res.json();
