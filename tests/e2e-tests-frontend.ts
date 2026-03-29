@@ -668,7 +668,9 @@ describe("[13] Upload Workflow With Cycles Shows Error", () => {
         expect(navigated, "should not navigate on cycle error").toBe(false);
 
         const pageText = await page.textContent("body");
-        expect(pageText?.toLowerCase()).toContain("error");
+        expect(pageText?.toLowerCase()).toContain(
+          'Cycle detected: Step "step-a" -- depends on --> Step "step-b" -- depends on --> Step "step-a"'.toLowerCase(),
+        );
       } finally {
         await ctx.close();
       }

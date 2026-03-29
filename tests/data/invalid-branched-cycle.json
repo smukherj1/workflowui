@@ -1,0 +1,49 @@
+{
+  "workflow": {
+    "metadata": {
+      "name": "invalid-branched-cycle-pipeline"
+    },
+    "steps": [
+      {
+        "id": "step-a",
+        "metadata": { "name": "Step A" },
+        "status": "passed",
+        "dependsOn": [],
+        "logs": [{ "content": "Step A logs." }],
+        "steps": []
+      },
+      {
+        "id": "step-b",
+        "metadata": { "name": "Step B" },
+        "status": "passed",
+        "dependsOn": ["step-a", "step-f"],
+        "logs": [{ "content": "Step B logs." }],
+        "steps": []
+      },
+      {
+        "id": "step-c",
+        "metadata": { "name": "Step C" },
+        "status": "passed",
+        "dependsOn": ["step-b"],
+        "logs": [{ "content": "Step C logs." }],
+        "steps": []
+      },
+      {
+        "id": "step-d",
+        "metadata": { "name": "Step D" },
+        "status": "passed",
+        "dependsOn": ["step-b"],
+        "logs": [{ "content": "Step D logs." }],
+        "steps": []
+      },
+      {
+        "id": "step-f",
+        "metadata": { "name": "Step F" },
+        "status": "passed",
+        "dependsOn": ["step-d"],
+        "logs": [{ "content": "Step F logs." }],
+        "steps": []
+      }
+    ]
+  }
+}

@@ -193,9 +193,6 @@ For dev, the Vite dev server proxies `/api` requests to the Hono server.
 
 ## Future Work
 
-- Better errors for workflow upload errors.
-  - For cycles, print the path between steps for the cycle.
-  - For workflow schema errors, beautify the Zod errors like the problematic fields and the issues with them.
 - Incrementally upload a workflow.
 - Verify workflows are retained for up to 7 days.
 - Add Github workflows to build docker images for the ui and server.

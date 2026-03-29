@@ -118,6 +118,41 @@ describe("POST /api/workflows — invalid payloads", () => {
     expect(body.summary).toBeString();
     expect(body.details).toBeArray();
     expect((body.details as string[]).length).toBeGreaterThanOrEqual(1);
+    expect((body.details as string[])[0]).toContain(
+      'Cycle detected: Step "step-a" -- depends on --> Step "step-b" -- depends on --> Step "step-a"',
+    );
+  });
+
+  test("invalid-direct-cycle.json: returns STRUCTURAL_INVALID with summary and details", async () => {
+    const { status, json } = await post(
+      "/api/workflows",
+      readFixture("invalid-direct-cycle.json"),
+    );
+    const body = json as Record<string, unknown>;
+    expect(status).toBe(400);
+    expect(body.error).toBe("STRUCTURAL_INVALID");
+    expect(body.summary).toBeString();
+    expect(body.details).toBeArray();
+    expect((body.details as string[]).length).toBeGreaterThanOrEqual(1);
+    expect((body.details as string[])[0]).toContain(
+      'Cycle detected: Step \"step-a\" depends on itself',
+    );
+  });
+
+  test("invalid-branched-cycle.json: returns STRUCTURAL_INVALID with summary and details", async () => {
+    const { status, json } = await post(
+      "/api/workflows",
+      readFixture("invalid-branched-cycle.json"),
+    );
+    const body = json as Record<string, unknown>;
+    expect(status).toBe(400);
+    expect(body.error).toBe("STRUCTURAL_INVALID");
+    expect(body.summary).toBeString();
+    expect(body.details).toBeArray();
+    expect((body.details as string[]).length).toBeGreaterThanOrEqual(1);
+    expect((body.details as string[])[0]).toContain(
+      'Cycle detected: Step "step-b" -- depends on --> Step "step-f" -- depends on --> Step "step-d" -- depends on --> Step "step-b"',
+    );
   });
 });
 

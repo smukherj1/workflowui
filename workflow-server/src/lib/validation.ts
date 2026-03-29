@@ -65,9 +65,7 @@ export function formatSchemaErrors(
   const items = shown.map((issue) => {
     const fieldPath = issue.path
       .map((seg, i) =>
-        typeof seg === "number"
-          ? `[${seg}]`
-          : (i > 0 ? "." : "") + String(seg),
+        typeof seg === "number" ? `[${seg}]` : (i > 0 ? "." : "") + String(seg),
       )
       .join("");
 
@@ -109,35 +107,62 @@ interface ValidationContext {
 }
 
 function detectCycle(steps: StepInput[]): string | null {
-  const ids = new Set(steps.map((s) => s.id));
-  const inDegree: Record<string, number> = {};
-  const adj: Record<string, string[]> = {};
+  type DFSNode = {
+    id: string;
+    parentId: string | null;
+  };
+  const lookup = new Map<string, StepInput>(steps.map((s) => [s.id, s]));
+  const visited = new Set<string>();
+  for (const step of steps) {
+    if (visited.has(step.id)) continue;
 
-  for (const s of steps) {
-    inDegree[s.id] = inDegree[s.id] ?? 0;
-    adj[s.id] = adj[s.id] ?? [];
-    for (const dep of s.dependsOn) {
-      if (!ids.has(dep)) continue;
-      adj[dep] = adj[dep] ?? [];
-      adj[dep].push(s.id);
-      inDegree[s.id] = (inDegree[s.id] ?? 0) + 1;
+    const exploring = new Map<string, DFSNode>();
+    const stack: DFSNode[] = [{ id: step.id, parentId: null }];
+
+    const tracePath = (rootId: string, curId: string): string[] => {
+      const path: string[] = [];
+      while (true) {
+        const cur = exploring.get(curId);
+        // Special case, we were unable to trace the path back to the root.
+        // This can happen if the node directly depends on itself. Otherwise, it
+        // indicates a bug in the cycle detection logic.
+        if (cur === undefined) return [];
+        path.push(cur.id);
+        if (cur.id === rootId) break;
+        curId = cur.parentId!;
+      }
+      return path.reverse();
+    };
+
+    while (stack.length > 0) {
+      const head = stack.pop()!;
+      if (exploring.has(head.id)) {
+        exploring.delete(head.id);
+        visited.add(head.id);
+        continue;
+      }
+      exploring.set(head.id, head);
+      stack.push(head); // revisit after exploring dependencies
+
+      const headNode = lookup.get(head.id)!;
+      for (const depId of headNode.dependsOn) {
+        if (depId === head.id) {
+          return `Cycle detected: Step "${head.id}" depends on itself`;
+        }
+        if (!lookup.has(depId)) {
+          return `Step "${head.id}" depends on non-existent step "${depId}"`;
+        }
+        if (visited.has(depId)) continue;
+        if (exploring.has(depId)) {
+          const cyclePath = tracePath(depId, head.id);
+          cyclePath.push(depId); // complete the cycle for display
+          return `Cycle detected: ${cyclePath.map((id) => `Step "${id}"`).join(" -- depends on --> ")}`;
+        }
+        stack.push({ id: depId, parentId: head.id });
+      }
     }
   }
-
-  const queue = steps
-    .filter((s) => (inDegree[s.id] ?? 0) === 0)
-    .map((s) => s.id);
-  let visited = 0;
-  while (queue.length > 0) {
-    const node = queue.shift()!;
-    visited++;
-    for (const neighbor of adj[node] ?? []) {
-      inDegree[neighbor]--;
-      if (inDegree[neighbor] === 0) queue.push(neighbor);
-    }
-  }
-
-  return visited < steps.length ? "Cycle detected in dependsOn" : null;
+  return null;
 }
 
 function validateStepsRecursive(

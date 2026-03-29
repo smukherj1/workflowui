@@ -1,0 +1,17 @@
+{
+  "workflow": {
+    "metadata": {
+      "name": "invalid-direct-cycle-pipeline"
+    },
+    "steps": [
+      {
+        "id": "step-a",
+        "metadata": { "name": "Step A" },
+        "status": "passed",
+        "dependsOn": ["step-a"],
+        "logs": [{ "content": "Step A logs." }],
+        "steps": []
+      }
+    ]
+  }
+}
