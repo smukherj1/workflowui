@@ -76,6 +76,17 @@ function countSteps(stepsInput: StepInput[]): number {
 
 // ── Insert workflow ───────────────────────────────────────────────────────────
 
+// Returns true if the DB connection is healthy, false if it failed (e.g. wrong credentials, DB down).
+export async function pingDB(): Promise<boolean> {
+  try {
+    await db.execute(sql`SELECT 1`);
+  } catch (error) {
+    console.error("Failed to ping the database.", error);
+    return false;
+  }
+  return true;
+}
+
 export async function insertWorkflow(
   input: WorkflowInput,
   host: string,

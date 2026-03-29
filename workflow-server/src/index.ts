@@ -4,11 +4,22 @@ import workflowsRouter from "./routes/workflows.js";
 import stepsRouter, { stepsGlobalRouter } from "./routes/steps.js";
 import logsRouter from "./routes/logs.js";
 import searchRouter from "./routes/search.js";
+import { pingDB } from "./lib/db.js";
 
 const app = new Hono();
 app.use(logger());
 
-app.get("/health", (c) => c.json({ status: "ok" }));
+app.get("/health", async (c) => {
+  const dbHealthy = await pingDB();
+  if (dbHealthy) {
+    return c.json({ status: "ok" });
+  } else {
+    return c.json(
+      { status: "unhealthy", message: "Unable to reach the database" },
+      503,
+    );
+  }
+});
 
 app.route("/api/workflows", workflowsRouter);
 app.route("/api/workflows", stepsRouter);
