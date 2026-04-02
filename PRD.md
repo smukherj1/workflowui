@@ -100,10 +100,13 @@ A web-based user interface designed to visualize, inspect, and debug CI/CD workf
 ### CUJ 9: Advanced Search Page
 
 - The user can navigate to a dedicated search page for complex queries that go beyond what the command palette offers.
-- The search page provides individual text inputs for each field: general search (`q`), name, URI, pin, and path — plus scope (all/workflows/steps), workflow ID, and date range (from/to date pickers). Any combination of fields can be filled; all non-empty inputs are ANDed together.
-- Results are displayed in a table with columns for type, status, name, location (URI or hierarchy path), and start time. Clicking a result navigates to the workflow or step.
+- The search page operates in two modes depending on context:
+  - **Without a workflow context** (reached from the landing page or landing page palette): the page searches workflows only. Inputs available: general search (`q`), name, URI, pin, and date range (from/to date pickers).
+  - **With a workflow context** (reached from the command palette within a workflow or step view): the page searches steps within that workflow. The workflow ID is fixed (displayed for context but not editable). Inputs available: general search (`q`), name, URI, pin, path, and date range.
+- Any combination of fields can be filled; all non-empty inputs are ANDed together.
+- Results are displayed in a table with columns for status, name, location (URI or hierarchy path), and start time. Clicking a result navigates to the workflow or step.
 - All search parameters are reflected in the URL, making searches shareable and bookmarkable.
-- The advanced search page is accessible from the command palette footer ("Advanced Search" link), which pre-fills all active per-field filters from the palette query. It is also accessible from the landing page.
+- The advanced search page is accessible from the command palette footer ("Advanced Search" link), which pre-fills all active per-field filters from the palette query and carries forward the workflow context if present. It is also accessible from the landing page.
 
 ## 5. Non-Functional Requirements
 

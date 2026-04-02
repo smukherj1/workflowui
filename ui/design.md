@@ -25,7 +25,7 @@ Styling uses inline styles throughout. No CSS framework is used.
 
 ```
 /                                                → UploadPage (landing)
-/search?q=&name=&uri=&pin=&path=&scope=&workflowId=&from=&to=  → SearchPage (advanced search)
+/search?q=&name=&uri=&pin=&path=&workflowId=&from=&to=  → SearchPage (advanced search)
 /workflows/:workflowId                           → WorkflowView (top-level DAG)
 /workflows/:workflowId/steps/:uuid               → StepView (sub-step DAG or leaf detail)
 /workflows/:workflowId/logs?stepPath=             → LogsPage (dedicated full-page log viewer)
@@ -100,7 +100,7 @@ interface Metadata {
 
 Typed fetch wrappers for every API endpoint — `uploadWorkflow`, `getWorkflow`, `getSteps`, `getStepDetail`, `lookupStep`, `getLogs`, `search`, `getBreadcrumbs`. All requests go to `/api` which Vite proxies to `:3001` in dev and nginx forwards in production.
 
-`search(q, options?)` calls `GET /api/search` with `q` plus optional per-field params (`name`, `uri`, `pin`, `path`), `scope`, `workflowId`, `from`, `to`, and `limit` parameters, returning a `SearchResponse`. All provided fields are ANDed by the server.
+`search(q, options?)` calls `GET /api/search` with `q` plus optional per-field params (`name`, `uri`, `pin`, `path`), `workflowId`, `from`, `to`, and `limit` parameters, returning a `SearchResponse`. All provided fields are ANDed by the server. When `workflowId` is provided, the API searches steps within that workflow; otherwise it searches workflows only.
 
 `getBreadcrumbs(workflowId, stepPath)` calls `GET /api/workflows/:id/breadcrumbs?stepPath=`, returning a `BreadcrumbsResponse` with the full ancestor chain for a given hierarchy path. Used by `LogsPage` to render its breadcrumb bar.
 
@@ -132,7 +132,7 @@ TanStack Query owns all server state. Zustand holds only UI state that isn't der
 Landing page. Renders a centered layout with:
 
 1. A title and tagline
-2. A search trigger button (🔍 Search workflows... ⌘K) that opens `CommandPalette` scoped to all workflows and steps (no `workflowId`). Ctrl/Cmd+K also opens the palette.
+2. A search trigger button (🔍 Search workflows... ⌘K) that opens `CommandPalette` scoped to workflows only (no `workflowId`). Ctrl/Cmd+K also opens the palette.
 3. `UploadForm` for uploading workflow JSON files
 4. `NavigateForm` for navigating to a workflow or step by ID
 5. An "Advanced Search" link to `/search` for discoverability
@@ -191,7 +191,7 @@ A centered modal overlay for searching workflows and steps. Props:
 
 - `open` — controls visibility
 - `onClose` — called on Escape, backdrop click, or after navigation
-- `workflowId?` — when set, default search scope is `"steps"` within that workflow; otherwise scope is `"all"`
+- `workflowId?` — when set, searches steps within that workflow; when absent, searches workflows only
 
 Behavior:
 
@@ -207,38 +207,42 @@ Behavior:
 
 ### `SearchPage` — `src/pages/SearchPage.tsx`
 
-Standalone route at `/search` (not nested under `WorkflowLayout`). Reads all filter values from URL search params (`q`, `name`, `uri`, `pin`, `path`, `scope`, `workflowId`, `from`, `to`) as the committed state. Renders a minimal header with the app name linking to `/`, then a two-section layout:
+Standalone route at `/search` (not nested under `WorkflowLayout`). Operates in two modes based on whether `workflowId` is present in the URL search params:
 
-1. `SearchForm` — pre-filled from URL params, calls `setSearchParams` on submit
+- **Without `workflowId`**: searches workflows only. Path input and Workflow ID input are hidden.
+- **With `workflowId`**: searches steps within that workflow. Path input is shown. Workflow ID is displayed as read-only for context.
+
+Reads all filter values from URL search params (`q`, `name`, `uri`, `pin`, `path`, `workflowId`, `from`, `to`) as the committed state. Renders a minimal header with the app name linking to `/`, then a two-section layout:
+
+1. `SearchForm` — pre-filled from URL params, calls `setSearchParams` on submit. Receives `workflowId` to control which inputs are shown.
 2. `SearchResultsTable` — displays query results or loading/empty states
 
-Uses TanStack Query with key `['search', q, name, uri, pin, path, scope, workflowId, from, to]`, enabled when at least one of `q`, `name`, `uri`, `pin`, or `path` is non-empty. `staleTime` is 0. Date values from the form (`YYYY-MM-DD`) are converted to RFC 3339 timestamps (`T00:00:00Z` for `from`, `T23:59:59Z` for `to`) before the API call. Element has `data-testid="search-page"`.
+Uses TanStack Query with key `['search', q, name, uri, pin, path, workflowId, from, to]`, enabled when at least one of `q`, `name`, `uri`, `pin`, or `path` is non-empty. `staleTime` is 0. Date values from the form (`YYYY-MM-DD`) are converted to RFC 3339 timestamps (`T00:00:00Z` for `from`, `T23:59:59Z` for `to`) before the API call. Element has `data-testid="search-page"`.
 
 ### `SearchForm` — `src/components/SearchForm.tsx`
 
-Filter form for the advanced search page. Accepts `initialValues` and `onSubmit` props. Maintains local controlled state for all fields; submits on button click or Enter from any text input. The "Clear" button resets all fields to empty and calls `onSubmit` immediately with empty values.
+Filter form for the advanced search page. Accepts `initialValues`, `onSubmit`, and `workflowId?` props. Maintains local controlled state for all fields; submits on button click or Enter from any text input. The "Clear" button resets all fields to empty and calls `onSubmit` immediately with empty values.
 
 Controls:
 
-| Control        | Type       | Maps to API param | Test ID             |
-| -------------- | ---------- | ----------------- | ------------------- |
-| General search | Text input | `q`               | `search-input-q`    |
-| Name           | Text input | `name`            | `search-input-name` |
-| URI            | Text input | `uri`             | `search-input-uri`  |
-| Pin            | Text input | `pin`             | `search-input-pin`  |
-| Path           | Text input | `path`            | `search-input-path` |
-| Scope          | Select     | `scope`           | —                   |
-| Workflow ID    | Text input | `workflowId`      | —                   |
-| From           | Date input | `from`            | —                   |
-| To             | Date input | `to`              | —                   |
+| Control        | Type            | Maps to API param | Test ID             | Shown when              |
+| -------------- | --------------- | ----------------- | ------------------- | ----------------------- |
+| General search | Text input      | `q`               | `search-input-q`    | Always                  |
+| Name           | Text input      | `name`            | `search-input-name` | Always                  |
+| URI            | Text input      | `uri`             | `search-input-uri`  | Always                  |
+| Pin            | Text input      | `pin`             | `search-input-pin`  | Always                  |
+| Path           | Text input      | `path`            | `search-input-path` | Only with `workflowId`  |
+| Workflow ID    | Read-only text  | `workflowId`      | —                   | Only with `workflowId`  |
+| From           | Date input      | `from`            | —                   | Always                  |
+| To             | Date input      | `to`              | —                   | Always                  |
 
-There is no "Field" dropdown — each field has its own labeled text input. The Workflow ID input is disabled when scope is `"workflows"`. Scope options: `All`, `Workflows`, `Steps`. At least one of `q`, `name`, `uri`, `pin`, or `path` must be non-empty for the search to execute. Form has `data-testid="search-form"`.
+There is no "Field" dropdown or Scope dropdown — each field has its own labeled text input. When `workflowId` is provided, it is displayed as read-only for context (the user cannot change which workflow is being searched). The Path input is only shown when `workflowId` is present since path search only applies to steps. At least one of `q`, `name`, `uri`, `pin`, or `path` must be non-empty for the search to execute. Form has `data-testid="search-form"`.
 
 ### `SearchResultsTable` — `src/components/SearchResultsTable.tsx`
 
 Displays search results in a table. Renders nothing when `hasQuery` is false, a loading message while fetching, an empty state (`data-testid="search-empty"`) when results are empty, or the results table (`data-testid="search-results-table"`).
 
-Columns: Type (colored badge: `workflow` or `step`), Status (`StatusBadge`), Name (clickable via row click), Location (URI for workflows, hierarchy path for steps), Start Time (`formatLocalTime`). Clicking a row navigates to `/workflows/:workflowId` for workflows or `/workflows/:workflowId/steps/:uuid` for steps.
+Columns: Status (`StatusBadge`), Name (clickable via row click), Location (URI for workflows, hierarchy path for steps), Start Time (`formatLocalTime`). The Type column is omitted since the result type is determined by context — without `workflowId` all results are workflows, with `workflowId` all results are steps. Clicking a row navigates to `/workflows/:workflowId` for workflows or `/workflows/:workflowId/steps/:uuid` for steps.
 
 ### `InfoCard` — `src/components/InfoCard.tsx`
 
@@ -392,13 +396,20 @@ Clicking the workflow name navigates to `/workflows/:workflowId`. Clicking an an
 A `CommandPalette` overlay is accessible from `WorkflowHeader` (within any workflow or step view), from `LogsPage`, and from `UploadPage`. It opens via the 🔍 search trigger button or Ctrl/Cmd+K.
 
 - **Within a workflow view**: `workflowId` is passed to `CommandPalette`, so the default search scope is `"steps"` within that workflow. Results navigate to `/workflows/:id/steps/:uuid`.
-- **On the landing page**: `CommandPalette` without `workflowId` results in searches scoped to both workflows and steps; `NavigateForm` handles exact-ID lookup.
+- **On the landing page**: `CommandPalette` without `workflowId` searches workflows only; `NavigateForm` handles exact-ID lookup.
 
 As the user types, requests are debounced (400 ms) to `GET /api/search`. The palette supports multi-prefix syntax (`name:`, `uri:`, `pin:`, `path:`) — multiple prefixes can be combined in one query (e.g., `name:build pin:abc`). When prefixes are detected, a prefix indicator bar shows one pill per active field; each pill has a `×` to remove only that prefix. Invalid prefixes are shown as red pills and treated as bare terms. Wrapping the entire query in double quotes bypasses prefix parsing. Results are rendered with a status badge, name, and hierarchy path or URI. Arrow keys navigate the list; Enter or click selects. Escape or clicking the backdrop closes the palette (if the help panel is open, Escape closes the panel first).
 
 ### Advanced Search Flow
 
-The user navigates to `/search` via the "Advanced Search" link in the palette footer, the link on `UploadPage`, or directly. The palette forwards all active per-field params (`q`, `name`, `uri`, `pin`, `path`) and `workflowId` context as URL params. On the search page the user fills the per-field filter inputs and submits — URL params update (making the state bookmarkable), TanStack Query fetches results, and the results table renders. Clicking a row navigates to the workflow or step view.
+The user navigates to `/search` via the "Advanced Search" link in the palette footer, the link on `UploadPage`, or directly. The palette forwards all active per-field params (`q`, `name`, `uri`, `pin`, `path`) and `workflowId` context as URL params.
+
+The search page operates in two modes:
+
+- **Without `workflowId`** (from landing page): searches workflows only. Path and Workflow ID inputs are hidden. Results are all workflow-type.
+- **With `workflowId`** (from workflow/step view palette): searches steps within that workflow. The workflow ID is fixed and shown as read-only. Path input is available. Results are all step-type.
+
+On the search page the user fills the per-field filter inputs and submits — URL params update (making the state bookmarkable), TanStack Query fetches results, and the results table renders. Clicking a row navigates to the workflow or step view.
 
 ### Home Navigation Flow
 
