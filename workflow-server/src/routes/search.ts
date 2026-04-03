@@ -12,7 +12,6 @@ const querySchema = z
     uri: z.string().min(1).optional(),
     pin: z.string().min(1).optional(),
     path: z.string().min(1).optional(),
-    scope: z.enum(["workflows", "steps", "all"]).optional().default("all"),
     workflowId: z.uuid().optional(),
     from: z.string().optional(),
     to: z.string().optional(),
@@ -22,44 +21,39 @@ const querySchema = z
   .refine((d) => d.q || d.name || d.uri || d.pin || d.path, {
     message:
       "At least one search term (q, name, uri, pin, or path) is required",
+  })
+  .refine((d) => !(d.path && !d.workflowId), {
+    message: "path filter requires workflowId",
   });
 
 // GET /api/search
 router.get("/", zValidator("query", querySchema), async (c) => {
-  const { q, name, uri, pin, path, scope, workflowId, from, to, limit } =
+  const { q, name, uri, pin, path, workflowId, from, to, limit } =
     c.req.valid("query");
 
   const fromDate = from ? new Date(from) : null;
   const toDate = to ? new Date(to) : null;
 
-  const results: unknown[] = [];
-
-  if (scope === "workflows" || scope === "all") {
-    // path is step-specific; skip workflow search if path is the only filter
-    if (q || name || uri || pin) {
-      const wfResults = await searchWorkflows(
-        { q, name, uri, pin },
-        fromDate,
-        toDate,
-        limit,
-      );
-      results.push(...wfResults);
-    }
-  }
-
-  if (scope === "steps" || scope === "all") {
-    const stepResults = await searchSteps(
+  if (workflowId) {
+    // Step search scoped to a workflow
+    const results = await searchSteps(
       { q, name, uri, pin, path },
-      workflowId ?? null,
+      workflowId,
       fromDate,
       toDate,
       limit,
     );
-    results.push(...stepResults);
+    return c.json({ results });
   }
 
-  // Trim to limit when scope is "all"
-  return c.json({ results: results.slice(0, limit) });
+  // Workflow-only search
+  const results = await searchWorkflows(
+    { q, name, uri, pin },
+    fromDate,
+    toDate,
+    limit,
+  );
+  return c.json({ results });
 });
 
 export default router;

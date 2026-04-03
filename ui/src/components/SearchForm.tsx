@@ -6,8 +6,6 @@ interface SearchFormValues {
   uri: string;
   pin: string;
   path: string;
-  scope: string;
-  workflowId: string;
   from: string;
   to: string;
 }
@@ -15,22 +13,26 @@ interface SearchFormValues {
 interface Props {
   initialValues: SearchFormValues;
   onSubmit: (values: SearchFormValues) => void;
+  /** When set, shows path input and displays workflowId as read-only context */
+  workflowId?: string;
 }
 
-export default function SearchForm({ initialValues, onSubmit }: Props) {
+export default function SearchForm({
+  initialValues,
+  onSubmit,
+  workflowId,
+}: Props) {
   const [q, setQ] = useState(initialValues.q);
   const [name, setName] = useState(initialValues.name);
   const [uri, setUri] = useState(initialValues.uri);
   const [pin, setPin] = useState(initialValues.pin);
   const [path, setPath] = useState(initialValues.path);
-  const [scope, setScope] = useState(initialValues.scope);
-  const [workflowId, setWorkflowId] = useState(initialValues.workflowId);
   const [from, setFrom] = useState(initialValues.from);
   const [to, setTo] = useState(initialValues.to);
 
   function handleSubmit(e?: React.FormEvent) {
     e?.preventDefault();
-    onSubmit({ q, name, uri, pin, path, scope, workflowId, from, to });
+    onSubmit({ q, name, uri, pin, path, from, to });
   }
 
   function handleClear() {
@@ -39,8 +41,6 @@ export default function SearchForm({ initialValues, onSubmit }: Props) {
     setUri("");
     setPin("");
     setPath("");
-    setScope("");
-    setWorkflowId("");
     setFrom("");
     setTo("");
     onSubmit({
@@ -49,14 +49,10 @@ export default function SearchForm({ initialValues, onSubmit }: Props) {
       uri: "",
       pin: "",
       path: "",
-      scope: "",
-      workflowId: "",
       from: "",
       to: "",
     });
   }
-
-  const workflowIdDisabled = scope === "workflows";
 
   const inputStyle = {
     background: "#0f172a",
@@ -120,66 +116,40 @@ export default function SearchForm({ initialValues, onSubmit }: Props) {
       {fieldBlock("Name", "search-input-name", name, setName)}
       {fieldBlock("URI", "search-input-uri", uri, setUri)}
       {fieldBlock("Pin", "search-input-pin", pin, setPin)}
-      {fieldBlock("Path", "search-input-path", path, setPath)}
 
-      {/* Scope */}
-      <div
-        style={{
-          flex: "0 1 130px",
-          display: "flex",
-          flexDirection: "column",
-          gap: "0.25rem",
-        }}
-      >
-        <label style={{ color: "#94a3b8", fontSize: "0.75rem" }}>Scope</label>
-        <select
-          value={scope}
-          onChange={(e) => setScope(e.target.value)}
+      {workflowId && fieldBlock("Path", "search-input-path", path, setPath)}
+
+      {/* Workflow ID — read-only context when set */}
+      {workflowId && (
+        <div
           style={{
-            background: "#0f172a",
-            border: "1px solid #334155",
-            borderRadius: 4,
-            color: "#f1f5f9",
-            fontSize: "0.875rem",
-            padding: "0.4rem 0.6rem",
+            flex: "1 1 160px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.25rem",
           }}
         >
-          <option value="">All</option>
-          <option value="workflows">Workflows</option>
-          <option value="steps">Steps</option>
-        </select>
-      </div>
-
-      {/* Workflow ID */}
-      <div
-        style={{
-          flex: "1 1 160px",
-          display: "flex",
-          flexDirection: "column",
-          gap: "0.25rem",
-        }}
-      >
-        <label style={{ color: "#94a3b8", fontSize: "0.75rem" }}>
-          Workflow ID
-        </label>
-        <input
-          type="text"
-          value={workflowId}
-          onChange={(e) => setWorkflowId(e.target.value)}
-          disabled={workflowIdDisabled}
-          placeholder="UUID..."
-          style={{
-            background: workflowIdDisabled ? "#0a0f1a" : "#0f172a",
-            border: "1px solid #334155",
-            borderRadius: 4,
-            color: workflowIdDisabled ? "#334155" : "#f1f5f9",
-            fontSize: "0.875rem",
-            outline: "none",
-            padding: "0.4rem 0.6rem",
-            cursor: workflowIdDisabled ? "not-allowed" : "text",
-          }}
-        />
-      </div>
+          <label style={{ color: "#94a3b8", fontSize: "0.75rem" }}>
+            Workflow ID
+          </label>
+          <input
+            type="text"
+            value={workflowId}
+            readOnly
+            placeholder="UUID..."
+            style={{
+              background: "#0a0f1a",
+              border: "1px solid #334155",
+              borderRadius: 4,
+              color: "#475569",
+              fontSize: "0.875rem",
+              outline: "none",
+              padding: "0.4rem 0.6rem",
+              cursor: "default",
+            }}
+          />
+        </div>
+      )}
 
       {/* From date */}
       <div

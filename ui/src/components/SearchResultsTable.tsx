@@ -70,7 +70,7 @@ export default function SearchResultsTable({
     >
       <thead>
         <tr style={{ borderBottom: "1px solid #334155" }}>
-          {["Type", "Status", "Name", "Location", "Start Time"].map((h) => (
+          {["Status", "Name", "Location", "Start Time"].map((h) => (
             <th
               key={h}
               style={{
@@ -111,21 +111,6 @@ export default function SearchResultsTable({
                   "transparent";
               }}
             >
-              <td style={{ padding: "0.6rem 0.75rem" }}>
-                <span
-                  style={{
-                    background:
-                      result.type === "workflow" ? "#1e3a5f" : "#1a2e1a",
-                    border: `1px solid ${result.type === "workflow" ? "#2563eb" : "#16a34a"}`,
-                    borderRadius: 4,
-                    color: result.type === "workflow" ? "#93c5fd" : "#86efac",
-                    fontSize: "0.7rem",
-                    padding: "0.1rem 0.4rem",
-                  }}
-                >
-                  {result.type}
-                </span>
-              </td>
               <td style={{ padding: "0.6rem 0.75rem" }}>
                 <StatusBadge status={result.status} size={10} />
               </td>

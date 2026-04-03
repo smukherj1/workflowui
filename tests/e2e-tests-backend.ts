@@ -648,7 +648,7 @@ describe("GET /api/search", () => {
   });
 
   test("missing all search terms returns 400", async () => {
-    const { status } = await get("/api/search?scope=all");
+    const { status } = await get("/api/search");
     expect(status).toBe(400);
   });
 
@@ -664,7 +664,7 @@ describe("GET /api/search", () => {
 
   test("name + pin filters are ANDed", async () => {
     const { status, json } = await get(
-      `/api/search?name=simple-linear&pin=abc123&scope=workflows`,
+      `/api/search?name=simple-linear&pin=abc123`,
     );
     const body = json as Record<string, unknown>;
     expect(status).toBe(200);
@@ -675,7 +675,7 @@ describe("GET /api/search", () => {
 
   test("name + pin AND filters exclude non-matching", async () => {
     const { status, json } = await get(
-      `/api/search?name=simple-linear&pin=wrong-pin&scope=workflows`,
+      `/api/search?name=simple-linear&pin=wrong-pin`,
     );
     const body = json as Record<string, unknown>;
     expect(status).toBe(200);
@@ -685,7 +685,7 @@ describe("GET /api/search", () => {
 
   test("q + pin filters are ANDed", async () => {
     const { status, json } = await get(
-      `/api/search?q=simple-linear&pin=abc123&scope=workflows`,
+      `/api/search?q=simple-linear&pin=abc123`,
     );
     const body = json as Record<string, unknown>;
     expect(status).toBe(200);
@@ -696,7 +696,7 @@ describe("GET /api/search", () => {
 
   test("q + pin AND excludes non-matching", async () => {
     const { status, json } = await get(
-      `/api/search?q=simple-linear&pin=wrong-pin&scope=workflows`,
+      `/api/search?q=simple-linear&pin=wrong-pin`,
     );
     const body = json as Record<string, unknown>;
     expect(status).toBe(200);
@@ -704,10 +704,8 @@ describe("GET /api/search", () => {
     expect(results.length).toBe(0);
   });
 
-  test("search by name finds workflows (scope=workflows)", async () => {
-    const { status, json } = await get(
-      `/api/search?q=simple-linear&scope=workflows`,
-    );
+  test("search by name finds workflows", async () => {
+    const { status, json } = await get(`/api/search?q=simple-linear`);
     const body = json as Record<string, unknown>;
     expect(status).toBe(200);
     const results = body.results as Record<string, unknown>[];
@@ -723,39 +721,24 @@ describe("GET /api/search", () => {
     expect(wf!.uploadedAt).toBeString();
   });
 
-  test("search by name finds steps (scope=steps)", async () => {
-    const { status, json } = await get(
-      `/api/search?q=Build+Frontend&scope=steps`,
-    );
-    const body = json as Record<string, unknown>;
-    expect(status).toBe(200);
-    const results = body.results as Record<string, unknown>[];
-    expect(results.length).toBeGreaterThanOrEqual(1);
-
-    const step = results.find(
-      (r) => r.type === "step" && r.workflowId === nestedId,
-    );
-    expect(step, "Build Frontend step in results").toBeDefined();
-    expect(step!.name).toBe("Build Frontend");
-    expect(step!.hierarchyPath).toBe("/ci/build-frontend");
-    expect(step!.workflowName).toBe("nested-hierarchy-pipeline");
+  test("scope parameter is rejected (400)", async () => {
+    const { status } = await get(`/api/search?q=hello&scope=all`);
+    expect(status).toBe(400);
   });
 
-  test("scope=all returns both workflow and step results", async () => {
-    const { status, json } = await get(`/api/search?q=nested&scope=all`);
+  test("search without workflowId returns only workflow results", async () => {
+    const { status, json } = await get(`/api/search?q=nested`);
     const body = json as Record<string, unknown>;
     expect(status).toBe(200);
     const results = body.results as Record<string, unknown>[];
     expect(results.length).toBeGreaterThanOrEqual(1);
-
-    const hasWorkflow = results.some((r) => r.type === "workflow");
-    expect(hasWorkflow, "at least one workflow result").toBe(true);
+    for (const r of results) {
+      expect(r.type).toBe("workflow");
+    }
   });
 
   test("name param searches name only", async () => {
-    const { status, json } = await get(
-      `/api/search?name=github&scope=workflows`,
-    );
+    const { status, json } = await get(`/api/search?name=github`);
     const body = json as Record<string, unknown>;
     expect(status).toBe(200);
     // "github" is in URI not name — should return no results
@@ -767,9 +750,7 @@ describe("GET /api/search", () => {
   });
 
   test("uri param finds workflows by URI", async () => {
-    const { status, json } = await get(
-      `/api/search?uri=github&scope=workflows`,
-    );
+    const { status, json } = await get(`/api/search?uri=github`);
     const body = json as Record<string, unknown>;
     expect(status).toBe(200);
     const results = body.results as Record<string, unknown>[];
@@ -780,9 +761,7 @@ describe("GET /api/search", () => {
   });
 
   test("pin param finds workflows by pin", async () => {
-    const { status, json } = await get(
-      `/api/search?pin=abc123&scope=workflows`,
-    );
+    const { status, json } = await get(`/api/search?pin=abc123`);
     const body = json as Record<string, unknown>;
     expect(status).toBe(200);
     const results = body.results as Record<string, unknown>[];
@@ -792,8 +771,15 @@ describe("GET /api/search", () => {
     }
   });
 
-  test("path param finds steps by hierarchy path", async () => {
-    const { status, json } = await get(`/api/search?path=%2Fci%2F&scope=steps`);
+  test("path without workflowId returns 400", async () => {
+    const { status } = await get(`/api/search?path=%2Fci`);
+    expect(status).toBe(400);
+  });
+
+  test("path with workflowId finds steps", async () => {
+    const { status, json } = await get(
+      `/api/search?path=%2Fci%2F&workflowId=${nestedId}`,
+    );
     const body = json as Record<string, unknown>;
     expect(status).toBe(200);
     const results = body.results as Record<string, unknown>[];
@@ -804,19 +790,9 @@ describe("GET /api/search", () => {
     }
   });
 
-  test("path param ignored for scope=workflows", async () => {
+  test("workflowId scopes search to steps within that workflow", async () => {
     const { status, json } = await get(
-      `/api/search?path=%2Fci&scope=workflows`,
-    );
-    const body = json as Record<string, unknown>;
-    expect(status).toBe(200);
-    const results = body.results as Record<string, unknown>[];
-    expect(results.length).toBe(0);
-  });
-
-  test("workflowId scopes step search to a single workflow", async () => {
-    const { status, json } = await get(
-      `/api/search?q=build&scope=steps&workflowId=${nestedId}`,
+      `/api/search?q=build&workflowId=${nestedId}`,
     );
     const body = json as Record<string, unknown>;
     expect(status).toBe(200);
@@ -827,10 +803,8 @@ describe("GET /api/search", () => {
     }
   });
 
-  test("limit caps number of results returned", async () => {
-    const { status, json } = await get(
-      `/api/search?q=step&scope=steps&limit=3`,
-    );
+  test("limit caps results (workflows)", async () => {
+    const { status, json } = await get(`/api/search?q=pipeline&limit=1`);
     const body = json as Record<string, unknown>;
     expect(status).toBe(200);
     const results = body.results as Record<string, unknown>[];
@@ -838,7 +812,7 @@ describe("GET /api/search", () => {
   });
 
   test("results include required fields for workflow type", async () => {
-    const { json } = await get(`/api/search?q=linear&scope=workflows`);
+    const { json } = await get(`/api/search?q=linear`);
     const body = json as Record<string, unknown>;
     const results = body.results as Record<string, unknown>[];
     const wf = results.find((r) => r.workflowId === linearId);
@@ -851,7 +825,7 @@ describe("GET /api/search", () => {
   });
 
   test("results include required fields for step type", async () => {
-    const { json } = await get(`/api/search?q=checkout&scope=steps`);
+    const { json } = await get(`/api/search?q=Build&workflowId=${nestedId}`);
     const body = json as Record<string, unknown>;
     const results = body.results as Record<string, unknown>[];
     expect(results.length).toBeGreaterThanOrEqual(1);
@@ -865,9 +839,9 @@ describe("GET /api/search", () => {
     expect(step.hierarchyPath).toBeString();
   });
 
-  test("search is case-insensitive", async () => {
-    const { json: lower } = await get(`/api/search?q=checkout&scope=steps`);
-    const { json: upper } = await get(`/api/search?q=CHECKOUT&scope=steps`);
+  test("case-insensitive search (workflows)", async () => {
+    const { json: lower } = await get(`/api/search?q=simple-linear`);
+    const { json: upper } = await get(`/api/search?q=SIMPLE-LINEAR`);
     const lowerResults = (lower as Record<string, unknown>)
       .results as unknown[];
     const upperResults = (upper as Record<string, unknown>)
@@ -877,7 +851,7 @@ describe("GET /api/search", () => {
 
   test("no results for unmatched query", async () => {
     const { status, json } = await get(
-      `/api/search?q=xyzzy_no_such_workflow_42&scope=all`,
+      `/api/search?q=xyzzy_no_such_workflow_42`,
     );
     const body = json as Record<string, unknown>;
     expect(status).toBe(200);

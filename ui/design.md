@@ -225,16 +225,16 @@ Filter form for the advanced search page. Accepts `initialValues`, `onSubmit`, a
 
 Controls:
 
-| Control        | Type            | Maps to API param | Test ID             | Shown when              |
-| -------------- | --------------- | ----------------- | ------------------- | ----------------------- |
-| General search | Text input      | `q`               | `search-input-q`    | Always                  |
-| Name           | Text input      | `name`            | `search-input-name` | Always                  |
-| URI            | Text input      | `uri`             | `search-input-uri`  | Always                  |
-| Pin            | Text input      | `pin`             | `search-input-pin`  | Always                  |
-| Path           | Text input      | `path`            | `search-input-path` | Only with `workflowId`  |
-| Workflow ID    | Read-only text  | `workflowId`      | —                   | Only with `workflowId`  |
-| From           | Date input      | `from`            | —                   | Always                  |
-| To             | Date input      | `to`              | —                   | Always                  |
+| Control        | Type           | Maps to API param | Test ID             | Shown when             |
+| -------------- | -------------- | ----------------- | ------------------- | ---------------------- |
+| General search | Text input     | `q`               | `search-input-q`    | Always                 |
+| Name           | Text input     | `name`            | `search-input-name` | Always                 |
+| URI            | Text input     | `uri`             | `search-input-uri`  | Always                 |
+| Pin            | Text input     | `pin`             | `search-input-pin`  | Always                 |
+| Path           | Text input     | `path`            | `search-input-path` | Only with `workflowId` |
+| Workflow ID    | Read-only text | `workflowId`      | —                   | Only with `workflowId` |
+| From           | Date input     | `from`            | —                   | Always                 |
+| To             | Date input     | `to`              | —                   | Always                 |
 
 There is no "Field" dropdown or Scope dropdown — each field has its own labeled text input. When `workflowId` is provided, it is displayed as read-only for context (the user cannot change which workflow is being searched). The Path input is only shown when `workflowId` is present since path search only applies to steps. At least one of `q`, `name`, `uri`, `pin`, or `path` must be non-empty for the search to execute. Form has `data-testid="search-form"`.
 

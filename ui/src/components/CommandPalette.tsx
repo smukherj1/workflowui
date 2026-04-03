@@ -11,7 +11,7 @@ import PaletteFooter from "./PaletteFooter";
 interface Props {
   open: boolean;
   onClose: () => void;
-  /** When set, default scope is "steps" within this workflow */
+  /** When set, searches steps within this workflow; otherwise searches workflows only */
   workflowId?: string;
 }
 
@@ -203,9 +203,7 @@ export default function CommandPalette({ open, onClose, workflowId }: Props) {
     debounceRef.current = setTimeout(async () => {
       setLoading(true);
       try {
-        const scope = workflowId ? "steps" : "all";
         const resp = await search(q, {
-          scope,
           workflowId: workflowId || undefined,
           name: name || undefined,
           uri: uri || undefined,
@@ -341,9 +339,7 @@ export default function CommandPalette({ open, onClose, workflowId }: Props) {
 
   if (!open) return null;
 
-  const placeholder = workflowId
-    ? "Search steps..."
-    : "Search workflows and steps...";
+  const placeholder = workflowId ? "Search steps..." : "Search workflows...";
 
   return (
     <div

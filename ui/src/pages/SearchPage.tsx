@@ -12,7 +12,6 @@ export default function SearchPage() {
   const committedUri = searchParams.get("uri") ?? "";
   const committedPin = searchParams.get("pin") ?? "";
   const committedPath = searchParams.get("path") ?? "";
-  const committedScope = searchParams.get("scope") ?? "";
   const committedWorkflowId = searchParams.get("workflowId") ?? "";
   const committedFrom = searchParams.get("from") ?? "";
   const committedTo = searchParams.get("to") ?? "";
@@ -35,7 +34,6 @@ export default function SearchPage() {
       committedUri,
       committedPin,
       committedPath,
-      committedScope,
       committedWorkflowId,
       committedFrom,
       committedTo,
@@ -46,7 +44,6 @@ export default function SearchPage() {
         uri: committedUri || undefined,
         pin: committedPin || undefined,
         path: committedPath || undefined,
-        scope: (committedScope as "workflows" | "steps" | "all") || "all",
         workflowId: committedWorkflowId || undefined,
         from: fromISO,
         to: toISO,
@@ -61,8 +58,6 @@ export default function SearchPage() {
     uri: string;
     pin: string;
     path: string;
-    scope: string;
-    workflowId: string;
     from: string;
     to: string;
   }) {
@@ -71,9 +66,10 @@ export default function SearchPage() {
     if (values.name) p.set("name", values.name);
     if (values.uri) p.set("uri", values.uri);
     if (values.pin) p.set("pin", values.pin);
-    if (values.path) p.set("path", values.path);
-    if (values.scope) p.set("scope", values.scope);
-    if (values.workflowId) p.set("workflowId", values.workflowId);
+    if (committedWorkflowId) {
+      p.set("workflowId", committedWorkflowId);
+      if (values.path) p.set("path", values.path);
+    }
     if (values.from) p.set("from", values.from);
     if (values.to) p.set("to", values.to);
     setSearchParams(p);
@@ -133,11 +129,10 @@ export default function SearchPage() {
             uri: committedUri,
             pin: committedPin,
             path: committedPath,
-            scope: committedScope,
-            workflowId: committedWorkflowId,
             from: committedFrom,
             to: committedTo,
           }}
+          workflowId={committedWorkflowId || undefined}
           onSubmit={handleSubmit}
         />
 

@@ -112,7 +112,6 @@ export async function lookupStep(uuid: string): Promise<StepLookupResponse> {
 export async function search(
   q: string | null,
   options?: {
-    scope?: "workflows" | "steps" | "all";
     workflowId?: string;
     name?: string;
     uri?: string;
@@ -125,7 +124,6 @@ export async function search(
 ): Promise<SearchResponse> {
   const params = new URLSearchParams();
   if (q) params.set("q", q);
-  if (options?.scope) params.set("scope", options.scope);
   if (options?.workflowId) params.set("workflowId", options.workflowId);
   if (options?.name) params.set("name", options.name);
   if (options?.uri) params.set("uri", options.uri);

@@ -1598,7 +1598,7 @@ describe("[23] Landing Page — Search Trigger & Command Palette", () => {
   );
 
   test(
-    "landing page palette searches all workflows (not scoped to a single workflow)",
+    "landing page palette searches workflows only (no workflowId)",
     async () => {
       const ctx = await browser.newContext();
       const page = await ctx.newPage();
@@ -2729,9 +2729,9 @@ describe("[27] Advanced Search Page — Rendering & Controls", () => {
         ).toBe(true);
         expect(
           await page.locator('[data-testid="search-input-path"]').isVisible(),
-        ).toBe(true);
-        // scope dropdown exists; no field dropdown
-        expect(await page.locator("select").count()).toBe(1);
+        ).toBe(false);
+        // no scope dropdown
+        expect(await page.locator("select").count()).toBe(0);
         expect(await page.locator('input[type="date"]').count()).toBe(2);
         expect(
           await page.locator('button[type="submit"]').count(),
@@ -2841,7 +2841,6 @@ describe("[27] Advanced Search Page — Rendering & Controls", () => {
         await page.locator('[data-testid="search-input-q"]').fill("test");
         await page.locator('[data-testid="search-input-name"]').fill("hello");
         await page.locator('[data-testid="search-input-pin"]').fill("abc");
-        await page.locator("select").first().selectOption("workflows");
 
         await page.getByRole("button", { name: "Clear" }).click();
 
@@ -2854,7 +2853,6 @@ describe("[27] Advanced Search Page — Rendering & Controls", () => {
         expect(
           await page.locator('[data-testid="search-input-pin"]').inputValue(),
         ).toBe("");
-        expect(await page.locator("select").first().inputValue()).toBe("");
         expect(
           await page.locator('input[type="date"]').first().inputValue(),
         ).toBe("");
@@ -2995,12 +2993,14 @@ describe("[28] Advanced Search Page — URL State & Navigation", () => {
   );
 
   test(
-    "[28.3] navigating to `/search?q=Build&name=hello&scope=steps` pre-fills all controls",
+    "[28.3] navigating to `/search?q=Build&name=hello&workflowId=...` pre-fills form in step-search mode",
     async () => {
       const ctx = await browser.newContext();
       const page = await ctx.newPage();
       try {
-        await page.goto(`${UI_BASE}/search?q=Build&name=hello&scope=steps`);
+        await page.goto(
+          `${UI_BASE}/search?q=Build&name=hello&workflowId=${workflowId}`,
+        );
         await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
 
         expect(
@@ -3009,7 +3009,10 @@ describe("[28] Advanced Search Page — URL State & Navigation", () => {
         expect(
           await page.locator('[data-testid="search-input-name"]').inputValue(),
         ).toBe("hello");
-        expect(await page.locator("select").first().inputValue()).toBe("steps");
+        // path input is visible when workflowId is present
+        expect(
+          await page.locator('[data-testid="search-input-path"]').isVisible(),
+        ).toBe(true);
       } finally {
         await ctx.close();
       }
@@ -3023,7 +3026,7 @@ describe("[28] Advanced Search Page — URL State & Navigation", () => {
       const ctx = await browser.newContext();
       const page = await ctx.newPage();
       try {
-        await page.goto(`${UI_BASE}/search?q=nested-hierarchy&scope=workflows`);
+        await page.goto(`${UI_BASE}/search?q=nested-hierarchy`);
         await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
 
         await page
@@ -3051,7 +3054,7 @@ describe("[28] Advanced Search Page — URL State & Navigation", () => {
       const ctx = await browser.newContext();
       const page = await ctx.newPage();
       try {
-        await page.goto(`${UI_BASE}/search?q=Build&scope=steps`);
+        await page.goto(`${UI_BASE}/search?q=Build&workflowId=${workflowId}`);
         await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
 
         const firstRow = page

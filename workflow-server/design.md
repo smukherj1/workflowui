@@ -90,16 +90,16 @@ app.get(
 
 All routes are served on `:3001`.
 
-| Method | Endpoint                                                                   | Handler file          | Purpose                                                          |
-| ------ | -------------------------------------------------------------------------- | --------------------- | ---------------------------------------------------------------- |
-| POST   | `/api/workflows`                                                           | `routes/workflows.ts` | Upload workflow JSON, returns `{ workflowId, viewUrl }`          |
-| GET    | `/api/workflows/:id`                                                       | `routes/workflows.ts` | Workflow detail (metadata, status, timestamps)                   |
-| DELETE | `/api/workflows/:id`                                                       | `routes/workflows.ts` | Delete workflow and all associated steps/logs (204/404)          |
-| GET    | `/api/workflows/:id/breadcrumbs?stepPath=`                                 | `routes/workflows.ts` | Breadcrumb chain for a given step path within a workflow         |
-| GET    | `/api/workflows/:id/steps?parentId=`                                       | `routes/steps.ts`     | All steps at hierarchy level with dependencies (single response) |
-| GET    | `/api/workflows/:id/steps/:uuid`                                           | `routes/steps.ts`     | Step detail with breadcrumbs                                     |
-| GET    | `/api/steps/:uuid`                                                         | `routes/steps.ts`     | Step lookup by UUID (returns workflow ID and step detail)        |
-| GET    | `/api/workflows/:id/logs?stepPath=&limit=&cursor=`                         | `routes/logs.ts`      | Merged logs for a step scope (cursor-paginated)                  |
+| Method | Endpoint                                                            | Handler file          | Purpose                                                          |
+| ------ | ------------------------------------------------------------------- | --------------------- | ---------------------------------------------------------------- |
+| POST   | `/api/workflows`                                                    | `routes/workflows.ts` | Upload workflow JSON, returns `{ workflowId, viewUrl }`          |
+| GET    | `/api/workflows/:id`                                                | `routes/workflows.ts` | Workflow detail (metadata, status, timestamps)                   |
+| DELETE | `/api/workflows/:id`                                                | `routes/workflows.ts` | Delete workflow and all associated steps/logs (204/404)          |
+| GET    | `/api/workflows/:id/breadcrumbs?stepPath=`                          | `routes/workflows.ts` | Breadcrumb chain for a given step path within a workflow         |
+| GET    | `/api/workflows/:id/steps?parentId=`                                | `routes/steps.ts`     | All steps at hierarchy level with dependencies (single response) |
+| GET    | `/api/workflows/:id/steps/:uuid`                                    | `routes/steps.ts`     | Step detail with breadcrumbs                                     |
+| GET    | `/api/steps/:uuid`                                                  | `routes/steps.ts`     | Step lookup by UUID (returns workflow ID and step detail)        |
+| GET    | `/api/workflows/:id/logs?stepPath=&limit=&cursor=`                  | `routes/logs.ts`      | Merged logs for a step scope (cursor-paginated)                  |
 | GET    | `/api/search?q=&name=&uri=&pin=&path=&workflowId=&from=&to=&limit=` | `routes/search.ts`    | Search workflows and steps by name, URI, pin, or path            |
 
 **Workflow detail response shape:**
@@ -224,17 +224,17 @@ Walks each path segment of `stepPath` and looks up the corresponding step row. R
 
 **Search response shape** (`GET /api/search`):
 
-| Parameter    | Required | Description                                                            |
-| ------------ | -------- | ---------------------------------------------------------------------- |
-| `q`          | No\*     | General search term — searches name, URI, and pin fields (ILIKE)       |
-| `name`       | No\*     | Search term restricted to the name field (ILIKE)                       |
-| `uri`        | No\*     | Search term restricted to the URI field (ILIKE)                        |
-| `pin`        | No\*     | Search term restricted to the pin field (ILIKE)                        |
+| Parameter    | Required | Description                                                                                   |
+| ------------ | -------- | --------------------------------------------------------------------------------------------- |
+| `q`          | No\*     | General search term — searches name, URI, and pin fields (ILIKE)                              |
+| `name`       | No\*     | Search term restricted to the name field (ILIKE)                                              |
+| `uri`        | No\*     | Search term restricted to the URI field (ILIKE)                                               |
+| `pin`        | No\*     | Search term restricted to the pin field (ILIKE)                                               |
 | `path`       | No\*     | Search term restricted to the hierarchy path field (ILIKE, steps only; requires `workflowId`) |
 | `workflowId` | No       | When provided, searches steps within this workflow. When omitted, searches workflows only.    |
-| `from`       | No       | Filter by `startTime >= RFC 3339 timestamp`                            |
-| `to`         | No       | Filter by `startTime <= RFC 3339 timestamp`                            |
-| `limit`      | No       | Max results (default 20, max 100)                                      |
+| `from`       | No       | Filter by `startTime >= RFC 3339 timestamp`                                                   |
+| `to`         | No       | Filter by `startTime <= RFC 3339 timestamp`                                                   |
+| `limit`      | No       | Max results (default 20, max 100)                                                             |
 
 \* At least one of `q`, `name`, `uri`, `pin`, `path` must be provided. All provided parameters are ANDed together. `path` requires `workflowId` (returns 400 otherwise).
 
