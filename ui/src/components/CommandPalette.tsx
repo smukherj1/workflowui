@@ -153,6 +153,219 @@ function parseSearchQuery(raw: string): ParsedQuery {
   return result;
 }
 
+function queryIsIdLookup(pq: ParsedQuery): boolean {
+  return (
+    pq.id !== null &&
+    pq.q === null &&
+    pq.name === null &&
+    pq.uri === null &&
+    pq.pin === null &&
+    pq.path === null
+  );
+}
+
+/**
+ * Serializes a single parsed prefix field back to its query-token form so
+ * the round-trip through parseSearchQuery is lossless.
+ * Empty values (e.g. from "name:" with no value yet) are kept as "field:".
+ * Values containing spaces are quoted; plain values are left bare.
+ */
+function serializePrefixToken(field: string, value: string): string {
+  if (value === "") return `${field}:`;
+  if (value.includes(" ")) return `${field}:"${value}"`;
+  return `${field}:${value}`;
+}
+
+/**
+ * Rebuilds the raw query string after the user removes a prefix pill.
+ * Remaining prefix fields are re-serialized in canonical order (id, name, uri,
+ * pin, path); bare terms (parsed.q) are appended last.
+ */
+function rebuildQueryWithoutField(
+  parsed: ParsedQuery,
+  removedField: string,
+): string {
+  const parts: string[] = [];
+  for (const field of ["id", "name", "uri", "pin", "path"] as const) {
+    if (parsed[field] !== null && field !== removedField) {
+      parts.push(serializePrefixToken(field, parsed[field]!));
+    }
+  }
+  if (parsed.q) parts.push(parsed.q);
+  return parts.join(" ");
+}
+
+/**
+ * When id: appears alongside other terms (not a pure id-only lookup), it
+ * cannot be resolved as a UUID, so it is folded into the general-purpose q
+ * term and sent to the text-search API as a keyword instead.
+ */
+function computeEffectiveQ(q: string | null, id: string | null): string | null {
+  if (id === null) return q;
+  const idTerm = `id:${id}`;
+  return q ? `${q} ${idTerm}` : idTerm;
+}
+
+/**
+ * The prefix indicator bar is visible whenever the user has at least one
+ * active field filter or an unrecognised prefix in their query.
+ * It is suppressed while the help panel is open — the two panels compete for
+ * the same space and the help text takes priority.
+ */
+function shouldShowPrefixIndicator(
+  parsed: ParsedQuery,
+  showHelp: boolean,
+): boolean {
+  return (
+    !showHelp &&
+    (parsed.id !== null ||
+      parsed.name !== null ||
+      parsed.uri !== null ||
+      parsed.pin !== null ||
+      parsed.path !== null ||
+      parsed.invalidPrefixes.length > 0)
+  );
+}
+
+/**
+ * Builds the list of valid (colored) filter pills for PalettePrefixIndicator.
+ * id: appears as a valid indigo pill only when it is the sole prefix
+ * (isIdLookup === true). When combined with other terms it is treated as
+ * invalid and appears in buildInvalidPrefixes instead.
+ */
+function buildPrefixFilters(
+  parsed: ParsedQuery,
+  isIdLookup: boolean,
+): { field: string; value: string }[] {
+  return [
+    ...(isIdLookup && parsed.id !== null
+      ? [{ field: "id", value: parsed.id }]
+      : []),
+    ...(parsed.name !== null ? [{ field: "name", value: parsed.name }] : []),
+    ...(parsed.uri !== null ? [{ field: "uri", value: parsed.uri }] : []),
+    ...(parsed.pin !== null ? [{ field: "pin", value: parsed.pin }] : []),
+    ...(parsed.path !== null ? [{ field: "path", value: parsed.path }] : []),
+  ];
+}
+
+/**
+ * Builds the list of invalid (red pill) prefix names shown in
+ * PalettePrefixIndicator. Combines explicitly unrecognised prefixes with id:
+ * when it appears alongside other terms (making a UUID lookup impossible).
+ */
+function buildInvalidPrefixes(
+  parsed: ParsedQuery,
+  isIdLookup: boolean,
+): string[] {
+  return [
+    ...parsed.invalidPrefixes,
+    ...(!isIdLookup && parsed.id !== null ? ["id"] : []),
+  ];
+}
+
+/**
+ * Constructs the URLSearchParams for the advanced search page, forwarding
+ * every active per-field filter from the palette and the current workflow
+ * scope. Used by handleAdvancedSearch to pre-populate the search page with
+ * the same filters already applied in the palette.
+ */
+function buildAdvancedSearchParams(
+  parsed: ParsedQuery,
+  workflowId?: string,
+): URLSearchParams {
+  const params = new URLSearchParams();
+  if (parsed.q) params.set("q", parsed.q);
+  if (parsed.name) params.set("name", parsed.name);
+  if (parsed.uri) params.set("uri", parsed.uri);
+  if (parsed.pin) params.set("pin", parsed.pin);
+  if (parsed.path) params.set("path", parsed.path);
+  if (workflowId) params.set("workflowId", workflowId);
+  return params;
+}
+
+/** Returns the appropriate placeholder for the search input based on scope. */
+function getPalettePlaceholder(workflowId?: string): string {
+  return workflowId ? "Search steps or go to ID..." : "Search or go to ID...";
+}
+
+/** Subset of state setters passed to async API helpers so they can update
+ *  palette state (results, loading, etc.) without being defined inside the
+ *  component closure. */
+interface PaletteStateActions {
+  setResults: (results: SearchResult[]) => void;
+  setSelectedIndex: (index: number) => void;
+  setLoading: (loading: boolean) => void;
+  setIdLookupMessage: (msg: string | null) => void;
+}
+
+/**
+ * Executes the debounced text search against the API and updates palette
+ * results state. Called inside the 400 ms setTimeout in Effect 2.
+ * Clears results on any API failure so the palette never shows stale data.
+ */
+async function performSearch(
+  effectiveQ: string | null,
+  name: string | null,
+  uri: string | null,
+  pin: string | null,
+  path: string | null,
+  workflowId: string | undefined,
+  actions: Pick<
+    PaletteStateActions,
+    "setResults" | "setSelectedIndex" | "setLoading"
+  >,
+): Promise<void> {
+  actions.setLoading(true);
+  try {
+    const resp = await search(effectiveQ, {
+      workflowId: workflowId || undefined,
+      name: name || undefined,
+      uri: uri || undefined,
+      pin: pin || undefined,
+      path: path || undefined,
+    });
+    actions.setResults(resp.results);
+    actions.setSelectedIndex(0);
+  } catch {
+    actions.setResults([]);
+  } finally {
+    actions.setLoading(false);
+  }
+}
+
+/**
+ * Resolves a UUID to a step or workflow and updates palette results state.
+ * Called by Effect 3 after UUID format validation passes.
+ * Tries lookupStep first; falls back to getWorkflow on 404. Shows a
+ * "not found" message if both lookups fail.
+ */
+async function performIdLookup(
+  uuid: string,
+  actions: PaletteStateActions,
+): Promise<void> {
+  actions.setLoading(true);
+  try {
+    try {
+      const resp = await lookupStep(uuid);
+      actions.setResults([stepLookupToResult(resp)]);
+      actions.setIdLookupMessage(null);
+      actions.setSelectedIndex(0);
+    } catch {
+      try {
+        const w = await getWorkflow(uuid);
+        actions.setResults([workflowToResult(w)]);
+        actions.setIdLookupMessage(null);
+        actions.setSelectedIndex(0);
+      } catch {
+        actions.setResults([]);
+        actions.setIdLookupMessage("No workflow or step found for this ID");
+      }
+    }
+  } finally {
+    actions.setLoading(false);
+  }
+}
+
 export default function CommandPalette({ open, onClose, workflowId }: Props) {
   // Raw text in the search input. Drives prefix parsing and the debounced API
   // call. Reset to "" when the palette opens.
@@ -202,13 +415,16 @@ export default function CommandPalette({ open, onClose, workflowId }: Props) {
   // True only when id: is the sole element in the query (no other prefixes or
   // bare terms). In this mode the palette performs a direct UUID lookup instead
   // of a text search, and the debounced search effect is skipped.
-  const isIdLookup =
-    parsed.id !== null &&
-    parsed.q === null &&
-    parsed.name === null &&
-    parsed.uri === null &&
-    parsed.pin === null &&
-    parsed.path === null;
+  const isIdLookup = queryIsIdLookup(parsed);
+
+  // Bundled state setters passed to async API helpers (performSearch /
+  // performIdLookup) so they can update palette state after awaiting.
+  const paletteActions: PaletteStateActions = {
+    setResults,
+    setSelectedIndex,
+    setLoading,
+    setIdLookupMessage,
+  };
 
   // Effect 1: Open/reset + global Escape handler (deps: [open, onClose])
   //
@@ -250,63 +466,52 @@ export default function CommandPalette({ open, onClose, workflowId }: Props) {
   //   - Clears any pending debounce timer
   //   - If isIdLookup: skips entirely (Effect 3 handles id: queries)
   //   - If no parsed terms: clears results immediately and returns
-  //   - Otherwise: starts a 400ms timer that calls the search API with all
-  //     parsed per-field params, current scope (derived from workflowId), and workflowId
-  //   - When id: is combined with other terms, folds id:value into q as a bare term
-  //   - On API success: sets results and resets selectedIndex to 0
-  //   - On API failure: clears results
-  //   - Sets loading true/false around the API call
+  //   - Otherwise: starts a 400ms timer that calls performSearch with all
+  //     parsed per-field params and the current workflow scope
+  //   - When id: is combined with other terms, computeEffectiveQ folds it into q
   useEffect(() => {
     if (!open) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
+
     const { q, name, uri, pin, path, id } = parseSearchQuery(query);
-    const isIdOnly =
-      id !== null &&
-      q === null &&
-      name === null &&
-      uri === null &&
-      pin === null &&
-      path === null;
+    const isIdOnly = queryIsIdLookup({
+      q,
+      name,
+      uri,
+      pin,
+      path,
+      id,
+      invalidPrefixes: [],
+    });
     if (isIdOnly) return; // handled by Effect 3
 
-    // When id: is combined with other terms, fold id:value into the q term
-    let effectiveQ = q;
-    if (id !== null) {
-      const idTerm = `id:${id}`;
-      effectiveQ = effectiveQ ? `${effectiveQ} ${idTerm}` : idTerm;
-    }
-
+    const effectiveQ = computeEffectiveQ(q, id);
     if (!effectiveQ && !name && !uri && !pin && !path) {
       setResults([]);
       return;
     }
-    debounceRef.current = setTimeout(async () => {
-      setLoading(true);
-      try {
-        const resp = await search(effectiveQ, {
-          workflowId: workflowId || undefined,
-          name: name || undefined,
-          uri: uri || undefined,
-          pin: pin || undefined,
-          path: path || undefined,
-        });
-        setResults(resp.results);
-        setSelectedIndex(0);
-      } catch {
-        setResults([]);
-      } finally {
-        setLoading(false);
-      }
-    }, 400);
+
+    debounceRef.current = setTimeout(
+      () =>
+        performSearch(
+          effectiveQ,
+          name,
+          uri,
+          pin,
+          path,
+          workflowId,
+          paletteActions,
+        ),
+      400,
+    );
   }, [query, open, workflowId]);
 
   // Effect 3: ID lookup (deps: [isIdLookup, parsed.id, open])
   //
   // Active only when isIdLookup is true (id: is the sole element in the query).
   //   - Validates the value as a UUID; shows "Invalid UUID format" if not.
-  //   - Calls lookupStep(uuid) first; on success maps to a StepSearchResult.
-  //   - On 404 from lookupStep, falls back to getWorkflow(uuid).
-  //   - If both fail, shows "No workflow or step found for this ID".
+  //   - Delegates to performIdLookup, which tries lookupStep then getWorkflow.
+  //   - If both fail, performIdLookup sets "No workflow or step found for this ID".
   //   - The result is displayed in the standard results list — no special rendering.
   useEffect(() => {
     if (!open || !isIdLookup || parsed.id === null) {
@@ -315,7 +520,6 @@ export default function CommandPalette({ open, onClose, workflowId }: Props) {
     }
 
     const uuid = parsed.id;
-
     if (!UUID_RE.test(uuid)) {
       setResults([]);
       setIdLookupMessage("Invalid UUID format");
@@ -323,27 +527,7 @@ export default function CommandPalette({ open, onClose, workflowId }: Props) {
     }
 
     setIdLookupMessage(null);
-    setLoading(true);
-
-    lookupStep(uuid)
-      .then((resp) => {
-        setResults([stepLookupToResult(resp)]);
-        setIdLookupMessage(null);
-        setSelectedIndex(0);
-      })
-      .catch(() =>
-        getWorkflow(uuid)
-          .then((w) => {
-            setResults([workflowToResult(w)]);
-            setIdLookupMessage(null);
-            setSelectedIndex(0);
-          })
-          .catch(() => {
-            setResults([]);
-            setIdLookupMessage("No workflow or step found for this ID");
-          }),
-      )
-      .finally(() => setLoading(false));
+    performIdLookup(uuid, paletteActions);
   }, [isIdLookup, parsed.id, open]);
 
   // Closes the palette and navigates to the selected result. Workflow results
@@ -376,14 +560,11 @@ export default function CommandPalette({ open, onClose, workflowId }: Props) {
   //   ArrowUp   — moves selection up one row, clamped at 0.
   //   Enter     — navigates to the currently highlighted result (if any).
   // Arrow keys call preventDefault to stop the browser from scrolling the page.
+  // Escape calls stopPropagation when help is open to prevent the global window
+  // listener from also firing and closing the palette instead of just the panel.
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Escape") {
       if (showHelp) {
-        // Stop the event from reaching the global window listener, which also
-        // handles Escape. Without this, React can flush the setShowHelp(false)
-        // state update before the window listener fires, causing showHelpRef to
-        // read false and triggering onClose() — closing the palette entirely
-        // instead of just the help panel.
         e.stopPropagation();
         setShowHelp(false);
       } else {
@@ -402,80 +583,21 @@ export default function CommandPalette({ open, onClose, workflowId }: Props) {
 
   // Called when the user clicks "Advanced Search →" in the palette footer.
   // Closes the palette and navigates to /search, pre-populating every active
-  // per-field param (q, name, uri, pin, path) and the workflowId scope so the
-  // advanced search page starts with the same filters already applied.
+  // per-field param and the workflowId scope via buildAdvancedSearchParams.
   function handleAdvancedSearch() {
     onClose();
-    const params = new URLSearchParams();
-    if (parsed.q) params.set("q", parsed.q);
-    if (parsed.name) params.set("name", parsed.name);
-    if (parsed.uri) params.set("uri", parsed.uri);
-    if (parsed.pin) params.set("pin", parsed.pin);
-    if (parsed.path) params.set("path", parsed.path);
-    if (workflowId) params.set("workflowId", workflowId);
+    const params = buildAdvancedSearchParams(parsed, workflowId);
     const qs = params.toString();
     navigate(`/search${qs ? `?${qs}` : ""}`);
   }
 
   // Called when the user clicks × on a prefix pill in PalettePrefixIndicator.
-  // Rebuilds the raw query string from the remaining parsed fields, omitting
-  // the removed field. Values that contain spaces are re-quoted so the
-  // regenerated string round-trips through parseSearchQuery correctly.
-  // Empty-string values (e.g. "name:" with no value yet) are serialized as
-  // "name:" rather than omitted or quoted, so the round-trip is lossless.
-  // General bare terms (parsed.q) are appended last without quotes.
-  // Uses !== null instead of truthy checks so empty-string values are kept.
+  // Delegates to rebuildQueryWithoutField to re-serialize the remaining fields.
   function handleRemovePrefix(field: string) {
-    const parts: string[] = [];
-    if (parsed.id !== null && field !== "id")
-      parts.push(
-        parsed.id === ""
-          ? "id:"
-          : parsed.id.includes(" ")
-            ? `id:"${parsed.id}"`
-            : `id:${parsed.id}`,
-      );
-    if (parsed.name !== null && field !== "name")
-      parts.push(
-        parsed.name === ""
-          ? "name:"
-          : parsed.name.includes(" ")
-            ? `name:"${parsed.name}"`
-            : `name:${parsed.name}`,
-      );
-    if (parsed.uri !== null && field !== "uri")
-      parts.push(
-        parsed.uri === ""
-          ? "uri:"
-          : parsed.uri.includes(" ")
-            ? `uri:"${parsed.uri}"`
-            : `uri:${parsed.uri}`,
-      );
-    if (parsed.pin !== null && field !== "pin")
-      parts.push(
-        parsed.pin === ""
-          ? "pin:"
-          : parsed.pin.includes(" ")
-            ? `pin:"${parsed.pin}"`
-            : `pin:${parsed.pin}`,
-      );
-    if (parsed.path !== null && field !== "path")
-      parts.push(
-        parsed.path === ""
-          ? "path:"
-          : parsed.path.includes(" ")
-            ? `path:"${parsed.path}"`
-            : `path:${parsed.path}`,
-      );
-    if (parsed.q) parts.push(parsed.q);
-    setQuery(parts.join(" "));
+    setQuery(rebuildQueryWithoutField(parsed, field));
   }
 
   if (!open) return null;
-
-  const placeholder = workflowId
-    ? "Search steps or go to ID..."
-    : "Search or go to ID...";
 
   return (
     <div
@@ -515,50 +637,17 @@ export default function CommandPalette({ open, onClose, workflowId }: Props) {
           loading={loading}
           showHelp={showHelp}
           onToggleHelp={() => setShowHelp((v) => !v)}
-          placeholder={placeholder}
+          placeholder={getPalettePlaceholder(workflowId)}
         />
-        {/* Show the prefix indicator bar only when the user has at least one
-            active field filter or an unrecognised prefix in their query, AND
-            the help panel is not currently open (the two panels would compete
-            for the same space and the help text is more important to surface
-            while it is visible).
-            Use !== null rather than truthy checks so that an empty-string value
-            (e.g. "name:" with no value yet) still triggers the pill. */}
-        {(parsed.id !== null ||
-          parsed.name !== null ||
-          parsed.uri !== null ||
-          parsed.pin !== null ||
-          parsed.path !== null ||
-          parsed.invalidPrefixes.length > 0) &&
-          !showHelp && (
-            <PalettePrefixIndicator
-              filters={[
-                // id: is shown as a valid (indigo) pill only when it's the sole
-                // prefix; otherwise it's treated as invalid (red pill below).
-                ...(isIdLookup && parsed.id !== null
-                  ? [{ field: "id", value: parsed.id }]
-                  : []),
-                ...(parsed.name !== null
-                  ? [{ field: "name", value: parsed.name }]
-                  : []),
-                ...(parsed.uri !== null
-                  ? [{ field: "uri", value: parsed.uri }]
-                  : []),
-                ...(parsed.pin !== null
-                  ? [{ field: "pin", value: parsed.pin }]
-                  : []),
-                ...(parsed.path !== null
-                  ? [{ field: "path", value: parsed.path }]
-                  : []),
-              ]}
-              invalidPrefixes={[
-                ...parsed.invalidPrefixes,
-                // id: combined with other terms is treated as invalid
-                ...(!isIdLookup && parsed.id !== null ? ["id"] : []),
-              ]}
-              onRemove={handleRemovePrefix}
-            />
-          )}
+        {/* Prefix indicator bar: shown when active filters or invalid prefixes
+            exist, but suppressed while the help panel is open. */}
+        {shouldShowPrefixIndicator(parsed, showHelp) && (
+          <PalettePrefixIndicator
+            filters={buildPrefixFilters(parsed, isIdLookup)}
+            invalidPrefixes={buildInvalidPrefixes(parsed, isIdLookup)}
+            onRemove={handleRemovePrefix}
+          />
+        )}
         {/* The main body area is either the help panel or the results list —
             never both at once. The help panel takes over the entire body when
             the user toggles it; the results list is shown otherwise. */}
