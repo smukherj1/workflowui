@@ -3195,3 +3195,197 @@ describe("[29] Landing Page — Advanced Search Link", () => {
     TEST_TIMEOUT,
   );
 });
+
+// ── [30] Advanced Search Page — End-to-End Mode Tests ────────────────────────
+
+describe("[30] Advanced Search Page — End-to-End Mode Tests", () => {
+  let workflowId: string;
+
+  beforeAll(async () => {
+    const result = await uploadFixture("nested-hierarchy.json");
+    workflowId = result.workflowId;
+  }, 15_000);
+
+  afterAll(async () => {
+    if (workflowId) await deleteWorkflow(workflowId);
+  });
+
+  test(
+    "[30.1] Mode 1: landing page palette → advanced search → workflow-only fields → search → workflow results",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        // 1. Navigate to landing page
+        await page.goto(UI_BASE);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+
+        // 2. Open command palette from landing page (no workflowId scope)
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        // 3. Click "Advanced Search" in palette footer
+        await page.locator('[data-testid="advanced-search-link"]').click();
+
+        // 4. Wait for navigation to /search
+        await page.waitForURL(/\/search/, { timeout: 10_000 });
+        await page
+          .locator('[data-testid="search-page"]')
+          .waitFor({ timeout: 10_000 });
+
+        // 5-8. Assert Mode 1 fields are visible
+        expect(
+          await page.locator('[data-testid="search-input-q"]').isVisible(),
+        ).toBe(true);
+        expect(
+          await page.locator('[data-testid="search-input-name"]').isVisible(),
+        ).toBe(true);
+        expect(
+          await page.locator('[data-testid="search-input-uri"]').isVisible(),
+        ).toBe(true);
+        expect(
+          await page.locator('[data-testid="search-input-pin"]').isVisible(),
+        ).toBe(true);
+
+        // 9. Path input is NOT visible in workflow-only mode
+        expect(
+          await page.locator('[data-testid="search-input-path"]').count(),
+        ).toBe(0);
+
+        // 10. URL has no workflowId param
+        expect(new URL(page.url()).searchParams.has("workflowId")).toBe(false);
+
+        // 11. No read-only workflow ID display element in the form
+        const form = page.locator('[data-testid="search-form"]');
+        const readonlyInputs = form.locator("input[readonly]");
+        expect(await readonlyInputs.count()).toBe(0);
+
+        // 12-13. Fill name and submit
+        await page
+          .locator('[data-testid="search-input-name"]')
+          .fill("nested-hierarchy");
+        await page.locator('button[type="submit"]').click();
+
+        // 14. Wait for results table
+        await page
+          .locator('[data-testid="search-results-table"]')
+          .waitFor({ timeout: 10_000 });
+
+        // 15. At least one result row
+        expect(
+          await page
+            .locator('[data-testid="search-results-table"]')
+            .locator("tbody tr")
+            .count(),
+        ).toBeGreaterThanOrEqual(1);
+
+        // 16-17. Click first result and assert navigation to /workflows/:id (not a step URL)
+        await page
+          .locator('[data-testid="search-results-table"]')
+          .locator("tbody tr")
+          .first()
+          .click();
+        await page.waitForURL(/\/workflows\/[^/]+$/, { timeout: 10_000 });
+        expect(/\/workflows\/[^/]+$/.test(page.url())).toBe(true);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "[30.2] Mode 2: workflow view → palette → advanced search → step-search fields → search by name and path → step results only",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        // 1-2. Navigate to the workflow view
+        await page.goto(`${UI_BASE}/workflows/${workflowId}`);
+        await page
+          .locator('[data-testid="search-trigger"]')
+          .waitFor({ timeout: 10_000 });
+
+        // 3. Open command palette (scoped to this workflow)
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        // 4. Click "Advanced Search" in palette footer
+        await page.locator('[data-testid="advanced-search-link"]').click();
+
+        // 5. Wait for navigation to /search?...&workflowId=<id>
+        await page.waitForURL(/\/search/, { timeout: 10_000 });
+        await page
+          .locator('[data-testid="search-page"]')
+          .waitFor({ timeout: 10_000 });
+
+        // 6. URL contains workflowId
+        expect(new URL(page.url()).searchParams.get("workflowId")).toBe(
+          workflowId,
+        );
+
+        // 7. Path input is visible in step-search mode
+        expect(
+          await page.locator('[data-testid="search-input-path"]').isVisible(),
+        ).toBe(true);
+
+        // 8-9. Standard inputs are visible
+        expect(
+          await page.locator('[data-testid="search-input-q"]').isVisible(),
+        ).toBe(true);
+        expect(
+          await page.locator('[data-testid="search-input-name"]').isVisible(),
+        ).toBe(true);
+
+        // 10. Workflow ID is shown as read-only (not an editable text input)
+        const form = page.locator('[data-testid="search-form"]');
+        const readonlyInputs = form.locator("input[readonly]");
+        expect(await readonlyInputs.count()).toBeGreaterThanOrEqual(1);
+        // The readonly input should contain the workflowId
+        const readonlyValue = await readonlyInputs.first().inputValue();
+        expect(readonlyValue).toBe(workflowId);
+
+        // 11-12. Fill name and path
+        await page.locator('[data-testid="search-input-name"]').fill("CI");
+        await page.locator('[data-testid="search-input-path"]').fill("/");
+
+        // 13. Submit
+        await page.locator('button[type="submit"]').click();
+
+        // 14. Wait for results table
+        await page
+          .locator('[data-testid="search-results-table"]')
+          .waitFor({ timeout: 10_000 });
+
+        // 15. At least one result row
+        expect(
+          await page
+            .locator('[data-testid="search-results-table"]')
+            .locator("tbody tr")
+            .count(),
+        ).toBeGreaterThanOrEqual(1);
+
+        // 16. workflowId is preserved in URL after submit
+        expect(new URL(page.url()).searchParams.get("workflowId")).toBe(
+          workflowId,
+        );
+
+        // 17-18. Click first result and assert navigation to /workflows/:id/steps/:uuid
+        await page
+          .locator('[data-testid="search-results-table"]')
+          .locator("tbody tr")
+          .first()
+          .click();
+        await page.waitForURL(/\/workflows\/.+\/steps\//, { timeout: 10_000 });
+        expect(/\/workflows\/.+\/steps\//.test(page.url())).toBe(true);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+});
