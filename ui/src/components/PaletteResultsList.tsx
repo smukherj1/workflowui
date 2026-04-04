@@ -9,6 +9,8 @@ interface Props {
   onSelect: (result: SearchResult) => void;
   onHover: (index: number) => void;
   workflowId?: string;
+  /** When set, replaces the default "No results" message. */
+  emptyMessage?: string;
 }
 
 export default function PaletteResultsList({
@@ -19,6 +21,7 @@ export default function PaletteResultsList({
   onSelect,
   onHover,
   workflowId,
+  emptyMessage,
 }: Props) {
   return (
     <div style={{ maxHeight: 360, overflowY: "auto" }}>
@@ -31,7 +34,7 @@ export default function PaletteResultsList({
             textAlign: "center",
           }}
         >
-          No results for &quot;{query}&quot;
+          {emptyMessage ?? <>No results for &quot;{query}&quot;</>}
         </div>
       )}
       {results.length === 0 && !query.trim() && (

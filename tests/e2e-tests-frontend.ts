@@ -3162,40 +3162,6 @@ describe("[28] Advanced Search Page — URL State & Navigation", () => {
   );
 });
 
-// ── [29] Landing Page — Advanced Search Link ─────────────────────────────────
-
-describe("[29] Landing Page — Advanced Search Link", () => {
-  test(
-    "[29.1] landing page has a link to the advanced search page",
-    async () => {
-      const ctx = await browser.newContext();
-      const page = await ctx.newPage();
-      try {
-        await page.goto(UI_BASE);
-        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
-
-        const link = page.getByText(/Advanced Search/i).first();
-        await link.waitFor({ timeout: 5_000 });
-        expect(await link.isVisible()).toBe(true);
-
-        await link.click();
-
-        await page.waitForURL(/\/search/, { timeout: 10_000 });
-        expect(new URL(page.url()).pathname).toBe("/search");
-        await page
-          .locator('[data-testid="search-page"]')
-          .waitFor({ timeout: 10_000 });
-        expect(
-          await page.locator('[data-testid="search-page"]').isVisible(),
-        ).toBe(true);
-      } finally {
-        await ctx.close();
-      }
-    },
-    TEST_TIMEOUT,
-  );
-});
-
 // ── [30] Advanced Search Page — End-to-End Mode Tests ────────────────────────
 
 describe("[30] Advanced Search Page — End-to-End Mode Tests", () => {
@@ -3382,6 +3348,308 @@ describe("[30] Advanced Search Page — End-to-End Mode Tests", () => {
           .click();
         await page.waitForURL(/\/workflows\/.+\/steps\//, { timeout: 10_000 });
         expect(/\/workflows\/.+\/steps\//.test(page.url())).toBe(true);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+});
+
+// ── [31] Command Palette — ID Prefix Lookup ───────────────────────────────────
+
+describe("[31] Command Palette — ID Prefix Lookup", () => {
+  let workflowId: string;
+  let stepUuid: string;
+
+  beforeAll(async () => {
+    const result = await uploadFixture("simple-linear.json");
+    workflowId = result.workflowId;
+    // Fetch top-level steps to obtain a real step UUID
+    const stepsRes = await fetch(
+      `${API_BASE}/api/workflows/${workflowId}/steps`,
+    );
+    const stepsData = (await stepsRes.json()) as {
+      steps: Array<{ uuid: string; name: string }>;
+    };
+    stepUuid = stepsData.steps[0].uuid;
+  }, 15_000);
+
+  afterAll(async () => {
+    if (workflowId) await deleteWorkflow(workflowId);
+  });
+
+  test(
+    "[31.1] id:<step-uuid> shows the step as a search result and navigates on Enter",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(UI_BASE);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .fill(`id:${stepUuid}`);
+
+        await page
+          .locator('[data-testid="search-result"]')
+          .first()
+          .waitFor({ timeout: 10_000 });
+        expect(
+          await page.locator('[data-testid="search-result"]').count(),
+        ).toBeGreaterThanOrEqual(1);
+
+        await page.keyboard.press("Enter");
+        await page.waitForURL(/\/workflows\/.+\/steps\//, { timeout: 10_000 });
+        expect(/\/workflows\/.+\/steps\//.test(page.url())).toBe(true);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "[31.2] id:<workflow-id> shows the workflow as a search result and navigates on Enter",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(UI_BASE);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .fill(`id:${workflowId}`);
+
+        await page
+          .locator('[data-testid="search-result"]')
+          .first()
+          .waitFor({ timeout: 10_000 });
+        expect(
+          await page.locator('[data-testid="search-result"]').count(),
+        ).toBeGreaterThanOrEqual(1);
+
+        await page.keyboard.press("Enter");
+        await page.waitForURL(/\/workflows\/[^/]+$/, { timeout: 10_000 });
+        expect(/\/workflows\/[^/]+$/.test(page.url())).toBe(true);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "[31.3] id: prefix works from the workflow-scoped palette",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(`${UI_BASE}/workflows/${workflowId}`);
+        await page
+          .locator('[data-testid="search-trigger"]')
+          .waitFor({ timeout: 10_000 });
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .fill(`id:${stepUuid}`);
+
+        await page
+          .locator('[data-testid="search-result"]')
+          .first()
+          .waitFor({ timeout: 10_000 });
+        expect(
+          await page.locator('[data-testid="search-result"]').count(),
+        ).toBeGreaterThanOrEqual(1);
+
+        await page.keyboard.press("Enter");
+        await page.waitForURL(/\/workflows\/.+\/steps\//, { timeout: 10_000 });
+        expect(/\/workflows\/.+\/steps\//.test(page.url())).toBe(true);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "[31.4] id: with a non-existent UUID shows 'not found' message",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(UI_BASE);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .fill("id:00000000-0000-0000-0000-000000000000");
+
+        // Wait for the lookup API calls to complete
+        await page.waitForTimeout(3_000);
+
+        expect(
+          await page.locator('[data-testid="search-result"]').count(),
+        ).toBe(0);
+        const bodyText = await page
+          .locator('[data-testid="command-palette"]')
+          .textContent();
+        expect(bodyText?.toLowerCase()).toContain("no workflow or step found");
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "[31.5] id: with a non-UUID value shows 'invalid UUID format' message",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(UI_BASE);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .fill("id:not-a-uuid");
+
+        await page.waitForTimeout(500);
+
+        expect(
+          await page.locator('[data-testid="search-result"]').count(),
+        ).toBe(0);
+        const bodyText = await page
+          .locator('[data-testid="command-palette"]')
+          .textContent();
+        expect(bodyText?.toLowerCase()).toContain("invalid uuid");
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "[31.6] Bare UUID input (no id: prefix) performs normal search, not ID lookup",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(UI_BASE);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        // Type a bare UUID (no id: prefix) — should trigger normal search
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .fill(stepUuid);
+
+        // Wait for response — either results or "no results" message
+        await page.waitForTimeout(1_000);
+
+        // No prefix indicator should appear for a bare UUID
+        expect(
+          await page.locator('[data-testid="prefix-indicator"]').count(),
+        ).toBe(0);
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "[31.7] id: prefix pill is shown with distinct styling",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(UI_BASE);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .fill(`id:${stepUuid}`);
+
+        await page
+          .locator('[data-testid="prefix-indicator"]')
+          .waitFor({ timeout: 5_000 });
+        expect(
+          await page.locator('[data-testid="prefix-indicator"]').isVisible(),
+        ).toBe(true);
+
+        const pill = page.locator('[data-testid="prefix-pill"]').first();
+        await pill.waitFor({ timeout: 5_000 });
+        const pillText = await pill.textContent();
+        expect(pillText).toContain("id");
+      } finally {
+        await ctx.close();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "[31.8] id: combined with other prefixes treats id: as invalid",
+    async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      try {
+        await page.goto(UI_BASE);
+        await page.waitForSelector("#root:not(:empty)", { timeout: 10_000 });
+        await page.locator('[data-testid="search-trigger"]').click();
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .waitFor({ timeout: 5_000 });
+
+        await page
+          .locator('[data-testid="command-palette-input"]')
+          .fill(`id:${stepUuid} name:build`);
+
+        await page
+          .locator('[data-testid="prefix-indicator"]')
+          .waitFor({ timeout: 5_000 });
+
+        // id: should appear as a red invalid-prefix pill
+        expect(
+          await page.locator('[data-testid="invalid-prefix"]').count(),
+        ).toBeGreaterThanOrEqual(1);
+        const invalidText = await page
+          .locator('[data-testid="invalid-prefix"]')
+          .first()
+          .textContent();
+        expect(invalidText).toContain("id");
       } finally {
         await ctx.close();
       }

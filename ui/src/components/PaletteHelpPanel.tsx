@@ -70,6 +70,44 @@ export default function PaletteHelpPanel() {
           marginBottom: "0.5rem",
         }}
       >
+        Navigation
+      </div>
+      <div
+        style={{
+          borderTop: "1px solid #334155",
+          paddingTop: "0.5rem",
+          marginBottom: "1rem",
+        }}
+      >
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "4rem 1fr auto",
+            gap: "0.5rem",
+            padding: "0.3rem 0",
+          }}
+        >
+          <span style={{ color: "#a5b4fc", fontFamily: "monospace" }}>id:</span>
+          <span>Go to workflow or step by UUID</span>
+          <span style={{ color: "#475569", fontFamily: "monospace" }}>
+            id:a1b2c3d4-...
+          </span>
+        </div>
+        <p
+          style={{ margin: "0.3rem 0", color: "#64748b", fontSize: "0.75rem" }}
+        >
+          The <span style={{ fontFamily: "monospace" }}>id:</span> prefix looks
+          up a workflow or step directly by its UUID. It cannot be combined with
+          other prefixes.
+        </p>
+      </div>
+      <div
+        style={{
+          color: "#f1f5f9",
+          fontWeight: 600,
+          marginBottom: "0.5rem",
+        }}
+      >
         Escaping
       </div>
       <div

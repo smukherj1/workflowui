@@ -131,7 +131,7 @@ export default function LogsPage() {
             cursor: "pointer",
           }}
         >
-          🔍 Search steps...
+          🔍 Search steps or go to ID...
           <span
             style={{
               fontSize: "0.7rem",

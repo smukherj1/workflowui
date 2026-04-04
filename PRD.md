@@ -46,9 +46,9 @@ A web-based user interface designed to visualize, inspect, and debug CI/CD workf
 
 ### CUJ 2: Landing Page Navigation
 
-- In addition to uploading a workflow, the landing page lets the user navigate directly to a previously uploaded workflow by entering its workflow ID.
-- The user can also navigate directly to a specific step by entering its step UUID.
-- Invalid or expired IDs display a clear error message.
+- In addition to uploading a workflow, the landing page lets the user navigate directly to a previously uploaded workflow or step by ID using the command palette.
+- The command palette (accessible from the landing page search trigger or Ctrl/Cmd+K) supports direct lookup by ID via the `id:` prefix: when the user types `id:<uuid>`, the palette looks up the workflow or step matching that UUID and displays it as a search result. The user can then click or press Enter to navigate to it.
+- If the UUID does not match any workflow or step, the palette shows a "not found" message in the results area — the user stays in the palette and can correct the ID without navigating to a dead-end page.
 
 ### CUJ 3: Main Workflow Visualization
 
@@ -91,11 +91,12 @@ A web-based user interface designed to visualize, inspect, and debug CI/CD workf
 ### CUJ 8: Field-Scoped Search via Command Palette
 
 - The user can scope their search to one or more specific fields by typing prefixes in the command palette: `name:`, `uri:`, `pin:`, or `path:`. Multiple prefixes can be combined in a single query (e.g., `name:build pin:abc`), and all active filters are ANDed together.
-- When prefixes are detected, the palette shows a colored pill per active field. Each pill has a `×` button to remove only that prefix while keeping others.
+- The palette also supports an `id:` prefix for direct lookup by UUID. When the user types `id:<uuid>` as the sole query term, the palette performs a UUID lookup and displays the matching workflow or step as a result. The `id:` prefix cannot be combined with other prefixes or bare terms.
+- When prefixes are detected, the palette shows a colored pill per active field. Each pill has a `×` button to remove only that prefix while keeping others. The `id:` pill is styled in indigo/purple to visually distinguish it from search filter pills.
 - Bare (unprefixed) terms are combined into a general search that matches across name, URI, and pin.
-- Unrecognized prefixes (e.g., `blah:hello`) are highlighted in red and treated as bare search terms.
+- Unrecognized prefixes (e.g., `blah:hello`) are highlighted in red and treated as bare search terms. The `id:` prefix combined with other terms is also treated as invalid.
 - If the user needs to search for text that starts with a prefix-like pattern (e.g., the literal string `name:foo`), they can wrap the entire query in double quotes to bypass all prefix detection.
-- A `?` help button in the palette provides a quick reference for supported prefixes, multi-prefix syntax, quoting, and search tips. Hovering over the button shows a tooltip; clicking it shows the full help reference in the results area.
+- A `?` help button in the palette provides a quick reference for supported prefixes, the `id:` lookup prefix, multi-prefix syntax, quoting, and search tips. Hovering over the button shows a tooltip; clicking it shows the full help reference in the results area.
 
 ### CUJ 9: Advanced Search Page
 
@@ -106,7 +107,7 @@ A web-based user interface designed to visualize, inspect, and debug CI/CD workf
 - Any combination of fields can be filled; all non-empty inputs are ANDed together.
 - Results are displayed in a table with columns for status, name, location (URI or hierarchy path), and start time. Clicking a result navigates to the workflow or step.
 - All search parameters are reflected in the URL, making searches shareable and bookmarkable.
-- The advanced search page is accessible from the command palette footer ("Advanced Search" link), which pre-fills all active per-field filters from the palette query and carries forward the workflow context if present. It is also accessible from the landing page.
+- The advanced search page is accessible from the command palette footer ("Advanced Search" link), which pre-fills all active per-field filters from the palette query and carries forward the workflow context if present. It is also accessible from the command palette footer on the landing page.
 
 ## 5. Non-Functional Requirements
 

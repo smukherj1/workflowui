@@ -25,6 +25,7 @@ const FIELD_COLORS: Record<
   uri: { bg: "#1e3f2f", border: "#16a34a", text: "#86efac" },
   pin: { bg: "#3f2d1e", border: "#d97706", text: "#fcd34d" },
   path: { bg: "#3b1e4f", border: "#9333ea", text: "#d8b4fe" },
+  id: { bg: "#2e1e4f", border: "#818cf8", text: "#a5b4fc" },
 };
 
 const DEFAULT_COLORS = { bg: "#1e3a5f", border: "#2563eb", text: "#93c5fd" };

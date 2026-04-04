@@ -43,8 +43,6 @@ The `/workflows/:workflowId` and `/workflows/:workflowId/steps/:uuid` routes are
 App                                  src/App.tsx
 ├── UploadPage                       src/pages/UploadPage.tsx
 │   ├── UploadForm                   src/components/UploadForm.tsx
-│   ├── NavigateForm                 src/components/NavigateForm.tsx
-│   ├── advanced-search link         (inline Link to /search)
 │   └── CommandPalette               src/components/CommandPalette.tsx
 │
 ├── SearchPage                       src/pages/SearchPage.tsx
@@ -132,10 +130,8 @@ TanStack Query owns all server state. Zustand holds only UI state that isn't der
 Landing page. Renders a centered layout with:
 
 1. A title and tagline
-2. A search trigger button (🔍 Search workflows... ⌘K) that opens `CommandPalette` scoped to workflows only (no `workflowId`). Ctrl/Cmd+K also opens the palette.
+2. A search trigger button (🔍 Search or go to ID... ⌘K) that opens `CommandPalette` scoped to workflows only (no `workflowId`). Ctrl/Cmd+K also opens the palette.
 3. `UploadForm` for uploading workflow JSON files
-4. `NavigateForm` for navigating to a workflow or step by ID
-5. An "Advanced Search" link to `/search` for discoverability
 
 No data fetching.
 
@@ -150,15 +146,6 @@ Drag-and-drop upload zone that accepts `.json` files. Handles three interactions
 On file selection, reads the file and calls `uploadWorkflow` from `src/lib/api.ts`. On success (201), navigates to the `viewUrl` from the response. On API error (400), displays the `details` field (normalized to an array) in an error box. On network error, shows a generic message. Uses a loading state to disable the zone and show a spinner during upload.
 
 The drop zone element has `data-testid="upload"` and `className="upload-dropzone"` for test targeting.
-
-### `NavigateForm` — `src/components/NavigateForm.tsx`
-
-A form with a text input and "Go" button that lets the user enter a workflow ID or step UUID to navigate directly to it. The form accepts two formats:
-
-- **Workflow ID** (UUID): navigates to `/workflows/:workflowId`
-- **Step UUID**: calls `lookupStep` (`GET /api/steps/:uuid`) to resolve the step's workflow ID, then navigates to `/workflows/:workflowId/steps/:uuid`
-
-Displays an error message if the ID is not found or the format is invalid.
 
 ### `WorkflowLayout` — `src/components/WorkflowLayout.tsx`
 
@@ -180,7 +167,7 @@ Horizontal dark bar at the top of every workflow view. Shows:
 - A **home link** (app name or logo) that navigates to `/` (the landing page)
 - `StatusBadge` for the workflow's overall status
 - Workflow name in bold
-- A **search trigger button** (🔍 Search steps... ⌘K) that opens `CommandPalette` scoped to the current workflow's steps
+- A **search trigger button** (🔍 Search steps or go to ID... ⌘K) that opens `CommandPalette` scoped to the current workflow's steps
 - Relative upload timestamp right-aligned, using `formatRelative`
 
 Registers a `window` `keydown` listener for Ctrl/Cmd+K to toggle the palette. The search trigger has `data-testid="search-trigger"`.
@@ -199,7 +186,8 @@ Behavior:
 - Registers a global `keydown` listener for Escape while open; if the help panel is open, Escape closes the panel instead of the palette
 - Debounces API calls (400 ms) to `GET /api/search` as the user types
 - Supports multi-prefix syntax (`name:`, `uri:`, `pin:`, `path:`) via `parseSearchQuery` — a pure function defined inline. Multiple prefixes can be combined in a single query (e.g., `name:build pin:abc`). When prefixes are detected, a prefix indicator bar (`data-testid="prefix-indicator"`) is shown below the input with one colored pill per active field and a `×` button on each pill to remove only that prefix. Invalid prefixes (unrecognized words before `:`) are shown as red pills (`data-testid="invalid-prefix"`) and are treated as bare search terms. Wrapping the entire query in double quotes bypasses all prefix parsing and searches the literal text.
-- A `?` help button (`data-testid="search-help-button"`, `title` tooltip) toggles a help panel (`data-testid="search-help-panel"`) that replaces the results area and describes all prefixes, multi-prefix syntax, quoting, and tips. Typing in the input closes the help panel.
+- Supports an `id:` prefix for looking up a workflow or step by UUID. When `parseSearchQuery` encounters `id:<value>`, and `id:` is the only prefix present (no other prefixes or bare terms), the palette performs a UUID lookup instead of a text search. The lookup calls `lookupStep(uuid)` first; if that 404s, calls `getWorkflow(uuid)`. The resolved workflow or step is mapped to a `SearchResult` object and displayed in the standard results list. If neither lookup finds a match, the results area shows a "No workflow or step found for this ID" message. If the value after `id:` is not a valid UUID format, the results area shows "Invalid UUID format". The `id:` prefix combined with other prefixes or bare terms is treated as invalid (red pill). The `id:` pill is styled in indigo/purple to visually distinguish it from search filter pills.
+- A `?` help button (`data-testid="search-help-button"`, `title` tooltip) toggles a help panel (`data-testid="search-help-panel"`) that replaces the results area and describes all prefixes (including `id:`), multi-prefix syntax, quoting, and tips. Typing in the input closes the help panel.
 - Footer shows keyboard hints and an "Advanced Search →" button (`data-testid="advanced-search-link"`) that closes the palette and navigates to `/search`, pre-filling all active per-field params (`q`, `name`, `uri`, `pin`, `path`) and `workflowId` as URL params.
 - Renders results with `StatusBadge`, step/workflow name, hierarchy path or URI, and a type badge
 - Arrow keys move selection; Enter or click navigates and closes the palette
@@ -366,7 +354,7 @@ The user drops or selects a `.json` file on the `UploadForm`. The form reads the
 
 ### Navigate-by-ID Flow
 
-The user enters a workflow ID or step UUID in the `NavigateForm` on the landing page. For workflow IDs, the app navigates directly to `/workflows/:workflowId`. For step UUIDs, the app looks up the step's workflow via the API, then navigates to `/workflows/:workflowId/steps/:uuid`. Invalid or expired IDs show an error message inline.
+The user types `id:<uuid>` into the command palette on the landing page (or any view). The palette recognizes the `id:` prefix and performs a direct lookup: it tries `lookupStep(uuid)` first, then falls back to `getWorkflow(uuid)`. The result is displayed as a standard search result in the palette. The user clicks or presses Enter to navigate to the workflow or step. If the UUID is not found, the palette shows a "not found" message inline — the user stays in the palette and can edit the ID. Non-UUID values after `id:` show an "Invalid UUID format" message.
 
 ### DAG Navigation Flow
 
@@ -396,13 +384,13 @@ Clicking the workflow name navigates to `/workflows/:workflowId`. Clicking an an
 A `CommandPalette` overlay is accessible from `WorkflowHeader` (within any workflow or step view), from `LogsPage`, and from `UploadPage`. It opens via the 🔍 search trigger button or Ctrl/Cmd+K.
 
 - **Within a workflow view**: `workflowId` is passed to `CommandPalette`, so the default search scope is `"steps"` within that workflow. Results navigate to `/workflows/:id/steps/:uuid`.
-- **On the landing page**: `CommandPalette` without `workflowId` searches workflows only; `NavigateForm` handles exact-ID lookup.
+- **On the landing page**: `CommandPalette` without `workflowId` searches workflows only. Direct ID lookup is available via the `id:` prefix in the palette.
 
 As the user types, requests are debounced (400 ms) to `GET /api/search`. The palette supports multi-prefix syntax (`name:`, `uri:`, `pin:`, `path:`) — multiple prefixes can be combined in one query (e.g., `name:build pin:abc`). When prefixes are detected, a prefix indicator bar shows one pill per active field; each pill has a `×` to remove only that prefix. Invalid prefixes are shown as red pills and treated as bare terms. Wrapping the entire query in double quotes bypasses prefix parsing. Results are rendered with a status badge, name, and hierarchy path or URI. Arrow keys navigate the list; Enter or click selects. Escape or clicking the backdrop closes the palette (if the help panel is open, Escape closes the panel first).
 
 ### Advanced Search Flow
 
-The user navigates to `/search` via the "Advanced Search" link in the palette footer, the link on `UploadPage`, or directly. The palette forwards all active per-field params (`q`, `name`, `uri`, `pin`, `path`) and `workflowId` context as URL params.
+The user navigates to `/search` via the "Advanced Search" link in the palette footer or directly. The palette forwards all active per-field params (`q`, `name`, `uri`, `pin`, `path`) and `workflowId` context as URL params.
 
 The search page operates in two modes:
 
@@ -438,7 +426,8 @@ When a hierarchy level exceeds 50 steps (`GRID_THRESHOLD`), `GraphContainer` swi
 | Upload in progress         | `UploadForm`     | Drop zone shows spinner and "Uploading..." text  |
 | Upload error (API 400)     | `UploadForm`     | Error box with `details` array from API response |
 | Upload error (network/5xx) | `UploadForm`     | Generic error message                            |
-| Navigate ID not found      | `NavigateForm`   | Inline error "Workflow/step not found"           |
+| Navigate ID not found      | `CommandPalette` | Inline "No workflow or step found for this ID"   |
+| Navigate ID invalid format | `CommandPalette` | Inline "Invalid UUID format" message             |
 
 ---
 
@@ -462,4 +451,4 @@ docker compose up -d
 bun run test:e2e-frontend   # from the repo root
 ```
 
-Tests cover: SPA hydration, upload flow, navigate-by-ID, DAG rendering, header metadata, info card, status badges, step navigation, breadcrumbs, dedicated log viewer, deep linking, browser history, validation errors, elapsed time display, command palette (open/close/search/navigate/prefix-syntax/help-panel/advanced-search-link), `LogsPage` breadcrumb navigation, advanced search page (rendering, URL state, date range filtering, row navigation), and landing page advanced search link. See [`/tests/e2e-tests-frontend.ts`](../tests/e2e-tests-frontend.ts) for the full test suite.
+Tests cover: SPA hydration, upload flow, DAG rendering, header metadata, info card, status badges, step navigation, breadcrumbs, dedicated log viewer, deep linking, browser history, validation errors, elapsed time display, command palette (open/close/search/navigate/prefix-syntax/help-panel/advanced-search-link/id-lookup), `LogsPage` breadcrumb navigation, and advanced search page (rendering, URL state, date range filtering, row navigation). See [`/tests/e2e-tests-frontend.ts`](../tests/e2e-tests-frontend.ts) for the full test suite.
