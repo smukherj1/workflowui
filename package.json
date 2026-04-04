@@ -2,7 +2,7 @@
   "name": "workflowui-root",
   "private": true,
   "scripts": {
-    "typecheck": "tsc --noEmit",
+    "check-types": "tsc --noEmit",
     "test:e2e-backend": "tsc --noEmit && bun test ./tests/e2e-tests-backend.ts",
     "test:e2e-frontend": "tsc --noEmit && bun test ./tests/e2e-tests-frontend.ts",
     "upload-test-workflows": "tsc --noEmit && bun run ./scripts/upload-test-workflows.ts",
