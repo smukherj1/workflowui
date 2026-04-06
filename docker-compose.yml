@@ -16,7 +16,7 @@ services:
       retries: 10
 
   pgadmin:
-    image: dpage/pgadmin4:9.13
+    image: dpage/pgadmin4:9.14.0
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@admin.com
       PGADMIN_DEFAULT_PASSWORD: admin
